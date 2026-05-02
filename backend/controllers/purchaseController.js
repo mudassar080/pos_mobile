@@ -1,6 +1,126 @@
 const Purchase = require('../models/Purchase');
+const PurchaseReturn = require('../models/PurchaseReturn');
 const Product = require('../models/Product');
 const Supplier = require('../models/Supplier');
+
+const normalizeImei = (value) =>
+  value == null || String(value).trim() === '' ? '' : String(value).trim();
+
+/** Reverse stock/supplier effects of a recorded purchase (mirrors cancel). */
+async function revertPurchaseInventoryAndSupplier(purchase) {
+  for (const item of purchase.items) {
+    const product = await Product.findById(item.product);
+    if (product) {
+      if (item.imei) {
+        await Product.findByIdAndUpdate(item.product, {
+          status: 'returned',
+        });
+      } else {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { quantity: -item.quantity },
+        });
+      }
+    }
+  }
+  await Supplier.findByIdAndUpdate(purchase.supplier, {
+    $inc: {
+      totalPurchases: -purchase.amount,
+      outstanding: -purchase.balance,
+    },
+  });
+}
+
+async function applyPreparedItemsToInventory(preparedItems, supplierId) {
+  for (const item of preparedItems) {
+    const product = await Product.findById(item.product);
+    if (item.imei) {
+      const productImei = normalizeImei(product.imei);
+      const incomingImei = normalizeImei(item.imei);
+
+      if (!incomingImei) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { quantity: item.quantity },
+          purchasePrice: item.price,
+          lastPurchasePrice: item.price,
+          purchaseDate: new Date(),
+          supplier: supplierId,
+        });
+      } else if (productImei === incomingImei) {
+        await Product.findByIdAndUpdate(item.product, {
+          status: 'available',
+          purchasePrice: item.price,
+          lastPurchasePrice: item.price,
+          purchaseDate: new Date(),
+          supplier: supplierId,
+        });
+      } else if (!productImei) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { quantity: item.quantity },
+          imei: incomingImei,
+          status: 'available',
+          purchasePrice: item.price,
+          lastPurchasePrice: item.price,
+          purchaseDate: new Date(),
+          supplier: supplierId,
+        });
+      } else {
+        await Product.create({
+          name: product.name,
+          category: product.category,
+          brand: product.brand,
+          model: product.model,
+          imei: incomingImei,
+          color: product.color,
+          purchasePrice: item.price,
+          lastPurchasePrice: item.price,
+          sellingPrice: product.sellingPrice,
+          status: 'available',
+          purchaseDate: new Date(),
+          supplier: supplierId,
+        });
+      }
+    } else {
+      await Product.findByIdAndUpdate(item.product, {
+        $inc: { quantity: item.quantity },
+        purchasePrice: item.price,
+        lastPurchasePrice: item.price,
+        purchaseDate: new Date(),
+        supplier: supplierId,
+      });
+    }
+  }
+}
+
+async function buildPreparedItems(items) {
+  const preparedItems = [];
+  let totalAmount = 0;
+
+  for (const item of items) {
+    const product = await Product.findById(item.product);
+    if (!product) {
+      const err = new Error(`Product not found: ${item.product}`);
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const price = item.price || product.purchasePrice;
+    const quantity = item.imei ? 1 : (item.quantity || 1);
+    const itemTotal = price * quantity;
+
+    preparedItems.push({
+      product: product._id,
+      productName: product.name,
+      imei: item.imei || null,
+      quantity,
+      price,
+      total: itemTotal,
+    });
+
+    totalAmount += itemTotal;
+  }
+
+  return { preparedItems, totalAmount };
+}
 
 // @desc    Get all purchases
 // @route   GET /api/purchases
@@ -119,33 +239,20 @@ const createPurchase = async (req, res) => {
       });
     }
 
-    // Validate and prepare items
-    const preparedItems = [];
-    let totalAmount = 0;
-
-    for (const item of items) {
-      const product = await Product.findById(item.product);
-      if (!product) {
+    let preparedItems;
+    let totalAmount;
+    try {
+      const built = await buildPreparedItems(items);
+      preparedItems = built.preparedItems;
+      totalAmount = built.totalAmount;
+    } catch (e) {
+      if (e.statusCode === 400) {
         return res.status(400).json({
           success: false,
-          message: `Product not found: ${item.product}`,
+          message: e.message,
         });
       }
-
-      const price = item.price || product.purchasePrice;
-      const quantity = item.imei ? 1 : (item.quantity || 1);
-      const itemTotal = price * quantity;
-
-      preparedItems.push({
-        product: product._id,
-        productName: product.name,
-        imei: item.imei || null,
-        quantity,
-        price,
-        total: itemTotal,
-      });
-
-      totalAmount += itemTotal;
+      throw e;
     }
 
     // Determine status
@@ -183,48 +290,7 @@ const createPurchase = async (req, res) => {
       notes,
     });
 
-    // Update product quantities, prices, and create new products for IMEI items
-    for (const item of preparedItems) {
-      const product = await Product.findById(item.product);
-      if (item.imei) {
-        // IMEI provided — check if the product already has the same IMEI
-        if (product.imei === item.imei) {
-          // Product already has this IMEI — just update it
-          await Product.findByIdAndUpdate(item.product, {
-            status: 'available',
-            purchasePrice: item.price,
-            lastPurchasePrice: item.price,
-            purchaseDate: new Date(),
-            supplier: supplier,
-          });
-        } else {
-          // Different IMEI or no IMEI on product — create new product entry for this specific IMEI
-          await Product.create({
-            name: product.name,
-            category: product.category,
-            brand: product.brand,
-            model: product.model,
-            imei: item.imei,
-            color: product.color,
-            purchasePrice: item.price,
-            lastPurchasePrice: item.price,
-            sellingPrice: product.sellingPrice,
-            status: 'available',
-            purchaseDate: new Date(),
-            supplier: supplier,
-          });
-        }
-      } else {
-        // No IMEI — update quantity, purchase price, and last purchase price
-        await Product.findByIdAndUpdate(item.product, {
-          $inc: { quantity: item.quantity },
-          purchasePrice: item.price,
-          lastPurchasePrice: item.price,
-          purchaseDate: new Date(),
-          supplier: supplier,
-        });
-      }
-    }
+    await applyPreparedItemsToInventory(preparedItems, supplier);
 
     // Update supplier payables: increase totalPurchases and outstanding (unpaid balance)
     await Supplier.findByIdAndUpdate(supplier, {
@@ -354,31 +420,7 @@ const cancelPurchase = async (req, res) => {
       });
     }
 
-    // Restore product quantities and handle IMEI products
-    for (const item of purchase.items) {
-      const product = await Product.findById(item.product);
-      if (product) {
-        if (item.imei) {
-          // Mark IMEI product as returned
-          await Product.findByIdAndUpdate(item.product, {
-            status: 'returned',
-          });
-        } else {
-          // Reduce quantity for non-IMEI products
-          await Product.findByIdAndUpdate(item.product, {
-            $inc: { quantity: -item.quantity },
-          });
-        }
-      }
-    }
-
-    // Reverse supplier payables
-    await Supplier.findByIdAndUpdate(purchase.supplier, {
-      $inc: {
-        totalPurchases: -purchase.amount,
-        outstanding: -purchase.balance,
-      },
-    });
+    await revertPurchaseInventoryAndSupplier(purchase);
 
     purchase.status = 'cancelled';
     await purchase.save();
@@ -392,6 +434,195 @@ const cancelPurchase = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error cancelling purchase',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update purchase (notes/date always; line items only if unpaid & no returns)
+// @route   PUT /api/purchases/:id
+// @access   Public
+const updatePurchase = async (req, res) => {
+  try {
+    const purchase = await Purchase.findById(req.params.id);
+    if (!purchase) {
+      return res.status(404).json({
+        success: false,
+        message: 'Purchase not found',
+      });
+    }
+
+    if (purchase.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot edit a cancelled purchase',
+      });
+    }
+
+    const { notes, date, supplier, items } = req.body;
+    const lineEditRequested = supplier !== undefined || items !== undefined;
+
+    if (!lineEditRequested) {
+      if (notes !== undefined) purchase.notes = notes;
+      if (date !== undefined) purchase.date = date;
+      await purchase.save();
+      const updated = await Purchase.findById(req.params.id)
+        .populate('supplier', 'name phone email address')
+        .populate('items.product', 'name category brand');
+      return res.status(200).json({
+        success: true,
+        message: 'Purchase updated',
+        data: updated,
+      });
+    }
+
+    const returnCount = await PurchaseReturn.countDocuments({ purchase: req.params.id });
+
+    if (returnCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Cannot change supplier or line items while this purchase has returns. You can still update notes only.',
+      });
+    }
+
+    if (purchase.paid > 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Cannot change supplier or line items while this purchase has payments. You can still update notes only.',
+      });
+    }
+
+    if (!supplier) {
+      return res.status(400).json({
+        success: false,
+        message: 'Supplier is required when updating line items',
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one line item is required',
+      });
+    }
+
+    const supplierDoc = await Supplier.findById(supplier);
+    if (!supplierDoc) {
+      return res.status(400).json({
+        success: false,
+        message: 'Supplier not found',
+      });
+    }
+
+    let preparedItems;
+    let totalAmount;
+    try {
+      const built = await buildPreparedItems(items);
+      preparedItems = built.preparedItems;
+      totalAmount = built.totalAmount;
+    } catch (e) {
+      if (e.statusCode === 400) {
+        return res.status(400).json({
+          success: false,
+          message: e.message,
+        });
+      }
+      throw e;
+    }
+
+    await revertPurchaseInventoryAndSupplier(purchase);
+
+    const paidAmount = 0;
+    const balance = totalAmount - paidAmount;
+
+    purchase.supplier = supplier;
+    purchase.supplierName = supplierDoc.name;
+    purchase.items = preparedItems;
+    purchase.amount = totalAmount;
+    purchase.paid = paidAmount;
+    purchase.paymentHistory = [];
+    purchase.balance = balance;
+    purchase.status = 'credit';
+    if (notes !== undefined) purchase.notes = notes;
+    if (date !== undefined) purchase.date = date;
+
+    await purchase.save();
+
+    await applyPreparedItemsToInventory(preparedItems, supplier);
+
+    await Supplier.findByIdAndUpdate(supplier, {
+      $inc: {
+        totalPurchases: totalAmount,
+        outstanding: balance,
+      },
+      lastPurchase: new Date(),
+    });
+
+    const updated = await Purchase.findById(req.params.id)
+      .populate('supplier', 'name phone email address')
+      .populate('items.product', 'name category brand');
+
+    res.status(200).json({
+      success: true,
+      message: 'Purchase updated',
+      data: updated,
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map((err) => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: messages,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Error updating purchase',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Delete purchase (reverses stock/supplier if not already cancelled)
+// @route   DELETE /api/purchases/:id
+// @access   Public
+const deletePurchase = async (req, res) => {
+  try {
+    const purchase = await Purchase.findById(req.params.id);
+    if (!purchase) {
+      return res.status(404).json({
+        success: false,
+        message: 'Purchase not found',
+      });
+    }
+
+    const returnCount = await PurchaseReturn.countDocuments({ purchase: req.params.id });
+    if (returnCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Cannot delete a purchase that has linked returns. Remove or adjust those returns first.',
+      });
+    }
+
+    if (purchase.status !== 'cancelled') {
+      await revertPurchaseInventoryAndSupplier(purchase);
+    }
+
+    await Purchase.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Purchase deleted',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting purchase',
       error: error.message,
     });
   }
@@ -585,6 +816,8 @@ module.exports = {
   getPurchases,
   getPurchase,
   createPurchase,
+  updatePurchase,
+  deletePurchase,
   updatePayment,
   cancelPurchase,
   getPurchaseSummary,

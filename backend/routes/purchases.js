@@ -4,6 +4,8 @@ const {
   getPurchases,
   getPurchase,
   createPurchase,
+  updatePurchase,
+  deletePurchase,
   updatePayment,
   cancelPurchase,
   getPurchaseSummary,
@@ -17,7 +19,11 @@ router.get('/payables', getPayables);
 // Standard routes
 router.route('/').get(getPurchases).post(createPurchase);
 
-router.get('/:id', getPurchase);
+router
+  .route('/:id')
+  .get(getPurchase)
+  .put(updatePurchase)
+  .delete(deletePurchase);
 
 // Purchase actions
 router.patch('/:id/payment', updatePayment);

@@ -227,6 +227,15 @@ export const purchasesApi = {
     fetchApi<any>(`/purchases/${id}/cancel`, {
       method: 'PATCH',
     }),
+  update: (id: string, data: any) =>
+    fetchApi<any>(`/purchases/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi<any>(`/purchases/${id}`, {
+      method: 'DELETE',
+    }),
   getSummary: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params)}` : '';
     return fetchApi<any>(`/purchases/summary${query}`);

@@ -17,12 +17,35 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Loader2, Eye } from 'lucide-react';
+import {
+  Plus,
+  Loader2,
+  Eye,
+  Pencil,
+  Trash2,
+  MoreVertical,
+} from 'lucide-react';
 import Link from 'next/link';
 import { purchasesApi } from '@/lib/api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
 
@@ -30,6 +53,12 @@ export default function PurchasesPage() {
   const { toast } = useToast();
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    num: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [detailsPurchase, setDetailsPurchase] = useState<any | null>(null);
 
   const fetchPurchases = async () => {
     try {
@@ -70,6 +99,30 @@ export default function PurchasesPage() {
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await purchasesApi.delete(deleteTarget.id);
+      toast({
+        title: 'Deleted',
+        description: `Purchase ${deleteTarget.num} removed and inventory/supplier totals adjusted.`,
+      });
+      setDeleteTarget(null);
+      await fetchPurchases();
+    } catch (error: any) {
+      toast({
+        title: 'Could not delete',
+        description:
+          error?.message ||
+          'Remove linked purchase returns first, or cancel the purchase instead.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -126,84 +179,46 @@ export default function PurchasesPage() {
                       </TableCell>
                       <TableCell>{getStatusBadge(purchase.status)}</TableCell>
                       <TableCell>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                            >
-                              <Eye className="w-4 h-4" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                              <span className="sr-only">Actions</span>
                             </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Purchase Details - {purchase.purchaseNumber}</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <p className="text-sm text-slate-600">Supplier</p>
-                                  <p className="font-medium">{purchase.supplierName}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-slate-600">Date</p>
-                                  <p className="font-medium">{formatDate(purchase.date)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-slate-600">Total Amount</p>
-                                  <p className="font-medium text-lg">{formatCurrency(purchase.amount)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-sm text-slate-600">Payment Status</p>
-                                  <p className="font-medium">{getStatusBadge(purchase.status)}</p>
-                                </div>
-                              </div>
-                              <div className="border-t pt-4">
-                                <h4 className="font-semibold mb-2">Items</h4>
-                                {purchase.items?.map((item: any, idx: number) => (
-                                  <div key={idx} className="flex justify-between text-sm py-1">
-                                    <span>
-                                      {item.productName} x {item.quantity}
-                                    </span>
-                                    <span>{formatCurrency(item.total)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="border-t pt-4">
-                                <h4 className="font-semibold mb-2">Payment History</h4>
-                                {purchase.paymentHistory && purchase.paymentHistory.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {[...purchase.paymentHistory]
-                                      .sort(
-                                        (a: any, b: any) =>
-                                          new Date(b.date).getTime() - new Date(a.date).getTime()
-                                      )
-                                      .map((payment: any, idx: number) => (
-                                        <div
-                                          key={idx}
-                                          className="flex items-center justify-between rounded-md border p-2 text-sm"
-                                        >
-                                          <div>
-                                            <p className="font-medium">
-                                              {formatCurrency(payment.amount)} ({payment.paymentMode || 'Cash'})
-                                            </p>
-                                            <p className="text-slate-500">
-                                              {payment.note || payment.source || 'Payment'}
-                                            </p>
-                                          </div>
-                                          <span className="text-slate-500">
-                                            {payment.date ? formatDate(payment.date) : '-'}
-                                          </span>
-                                        </div>
-                                      ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-slate-500">No payment history available</p>
-                                )}
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => setDetailsPurchase(purchase)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View details
+                            </DropdownMenuItem>
+                            {purchase.status !== 'cancelled' ? (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/purchases/${purchase._id}/edit`}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit purchase
+                                </Link>
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                <Pencil className="mr-2 h-4 w-4 opacity-50" />
+                                Edit purchase (cancelled)
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onSelect={() =>
+                                setDeleteTarget({
+                                  id: purchase._id,
+                                  num: purchase.purchaseNumber,
+                                })
+                              }
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -219,6 +234,132 @@ export default function PurchasesPage() {
             )}
           </CardContent>
         </Card>
+
+        <Dialog
+          open={detailsPurchase !== null}
+          onOpenChange={(open) => {
+            if (!open) setDetailsPurchase(null);
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            {detailsPurchase ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    Purchase Details — {detailsPurchase.purchaseNumber}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-slate-600">Supplier</p>
+                      <p className="font-medium">{detailsPurchase.supplierName}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Date</p>
+                      <p className="font-medium">{formatDate(detailsPurchase.date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Total Amount</p>
+                      <p className="font-medium text-lg">
+                        {formatCurrency(detailsPurchase.amount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-600">Payment Status</p>
+                      <p className="font-medium">{getStatusBadge(detailsPurchase.status)}</p>
+                    </div>
+                  </div>
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-2">Items</h4>
+                    {detailsPurchase.items?.map((item: any, idx: number) => (
+                      <div key={idx} className="flex justify-between text-sm py-1">
+                        <span>
+                          {item.productName} x {item.quantity}
+                        </span>
+                        <span>{formatCurrency(item.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-2">Payment History</h4>
+                    {detailsPurchase.paymentHistory &&
+                    detailsPurchase.paymentHistory.length > 0 ? (
+                      <div className="space-y-2">
+                        {[...detailsPurchase.paymentHistory]
+                          .sort(
+                            (a: any, b: any) =>
+                              new Date(b.date).getTime() - new Date(a.date).getTime()
+                          )
+                          .map((payment: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between rounded-md border p-2 text-sm"
+                            >
+                              <div>
+                                <p className="font-medium">
+                                  {formatCurrency(payment.amount)} (
+                                  {payment.paymentMode || 'Cash'})
+                                </p>
+                                <p className="text-slate-500">
+                                  {payment.note || payment.source || 'Payment'}
+                                </p>
+                              </div>
+                              <span className="text-slate-500">
+                                {payment.date ? formatDate(payment.date) : '-'}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No payment history available</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => {
+            if (!open && !deleting) setDeleteTarget(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this purchase?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove{' '}
+                <strong>{deleteTarget?.num}</strong> from your records.
+                {(purchases.find((p) => p._id === deleteTarget?.id)?.status as string) !==
+                  'cancelled' && (
+                  <>
+                    {' '}
+                    Stock and supplier payables will be reversed to match deleting this entry.
+                  </>
+                )}
+                {' '}
+                You cannot delete a purchase that still has linked purchase returns.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  confirmDelete();
+                }}
+                disabled={deleting}
+                className="bg-red-600 focus:ring-red-600 hover:bg-red-700"
+              >
+                {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );
