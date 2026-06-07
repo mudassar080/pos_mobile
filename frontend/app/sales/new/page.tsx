@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -30,11 +29,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, Save, User, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, User, Loader2, Package, ShoppingBag, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, PAYMENT_MODES } from '@/utils/constant';
 import { productsApi, customersApi, salesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { ColorCard, SalesPageHero, SummaryStat } from '@/components/sales/sales-ui';
 
 interface SaleItem {
   id: string;
@@ -371,8 +372,12 @@ export default function NewSalePage() {
   if (loading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+        <div className="space-y-6 animate-pulse">
+          <div className="h-36 rounded-3xl bg-gradient-to-r from-cyan-200 via-blue-200 to-indigo-200" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 h-96 rounded-2xl bg-slate-100" />
+            <div className="h-80 rounded-2xl bg-slate-100" />
+          </div>
         </div>
       </MainLayout>
     );
@@ -397,254 +402,362 @@ export default function NewSalePage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">New Sale</h1>
-            <p className="text-slate-600">Create a new sale transaction</p>
-          </div>
-          <Button variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="New Sale"
+          description="Create a new sale transaction"
+          badge="Point of Sale"
+          gradient="from-cyan-600 via-blue-600 to-indigo-700"
+          backHref="/sales"
+          actions={
+            <Button
+              variant="secondary"
+              onClick={() => router.back()}
+              className="rounded-xl bg-white/15 text-white hover:bg-white/25 border-0"
+            >
+              Cancel
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Items"
+            value={String(items.length)}
+            icon={Package}
+            theme="bg-gradient-to-br from-cyan-50 to-blue-100 text-cyan-900 ring-1 ring-cyan-100"
+          />
+          <SummaryStat
+            label="Quantity"
+            value={String(totalQuantity)}
+            icon={ShoppingBag}
+            theme="bg-gradient-to-br from-violet-50 to-purple-100 text-violet-900 ring-1 ring-violet-100"
+          />
+          <SummaryStat
+            label="Profit / Loss"
+            value={`${totalProfitLoss < 0 ? '-' : '+'}${formatCurrency(Math.abs(totalProfitLoss))}`}
+            icon={CreditCard}
+            theme={
+              totalProfitLoss < 0
+                ? 'bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100'
+                : 'bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100'
+            }
+          />
+          <SummaryStat
+            label="Total"
+            value={formatCurrency(total)}
+            icon={CreditCard}
+            theme="bg-gradient-to-br from-indigo-50 to-blue-100 text-indigo-900 ring-1 ring-indigo-100"
+          />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Customer Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <Label>Select Customer</Label>
-                    <Select
-                      value={customer?._id || 'walk-in'}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <ColorCard
+              title="Customer Details"
+              headerClassName="bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-100/50 text-cyan-900"
+            >
+              <div className="space-y-4">
+                <div>
+                  <Label>Select Customer</Label>
+                  <Select
+                    value={customer?._id || 'walk-in'}
+                    onValueChange={(value) => {
+                      if (value === 'walk-in') {
+                        setCustomer(null);
+                      } else {
+                        const cust = customers.find((c) => c._id === value);
+                        setCustomer(cust);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="rounded-xl mt-1.5">
+                      <SelectValue placeholder="Choose customer or walk-in" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="walk-in">Walk-in Customer</SelectItem>
+                      {customers.map((cust) => (
+                        <SelectItem key={cust._id} value={cust._id}>
+                          {cust.name} - {cust.phone}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                    >
+                      <User className="w-4 h-4 mr-2" />
+                      Add New Customer
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Add New Customer</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Name *</Label>
+                        <Input
+                          value={newCustomer.name}
+                          onChange={(e) =>
+                            setNewCustomer({ ...newCustomer, name: e.target.value })
+                          }
+                          placeholder="Customer name"
+                          className="rounded-xl mt-1.5"
+                        />
+                      </div>
+                      <div>
+                        <Label>Phone *</Label>
+                        <Input
+                          value={newCustomer.phone}
+                          onChange={(e) =>
+                            setNewCustomer({ ...newCustomer, phone: e.target.value })
+                          }
+                          placeholder="Phone number"
+                          className="rounded-xl mt-1.5"
+                        />
+                      </div>
+                      <div>
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          value={newCustomer.email}
+                          onChange={(e) =>
+                            setNewCustomer({ ...newCustomer, email: e.target.value })
+                          }
+                          placeholder="Email address"
+                          className="rounded-xl mt-1.5"
+                        />
+                      </div>
+                      <div>
+                        <Label>Address</Label>
+                        <Input
+                          value={newCustomer.address}
+                          onChange={(e) =>
+                            setNewCustomer({ ...newCustomer, address: e.target.value })
+                          }
+                          placeholder="Address"
+                          className="rounded-xl mt-1.5"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleAddCustomer}
+                        className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 border-0"
+                        disabled={savingCustomer}
+                      >
+                        {savingCustomer && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Add Customer
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </ColorCard>
+
+            <ColorCard
+              title="Add Products"
+              headerClassName="bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-100/50 text-emerald-900"
+            >
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  <div className="sm:col-span-2 xl:col-span-4">
+                    <Label>Product</Label>
+                    <Combobox
+                      options={products.map((product) => ({
+                        value: product._id,
+                        label: `${product.name || ''}${
+                          product.brand ? ` | Brand: ${product.brand}` : ''
+                        }${product.model ? ` | Model: ${product.model}` : ''}${
+                          product.sellingPrice
+                            ? ` | Sale: ${formatCurrency(product.sellingPrice)}`
+                            : ''
+                        }`,
+                        displayLabel: product.name || '',
+                      }))}
+                      value={selectedProduct}
                       onValueChange={(value) => {
-                        if (value === 'walk-in') {
-                          setCustomer(null);
+                        setSelectedProduct(value);
+                        const product = products.find((p) => p._id === value);
+                        if (product) {
+                          setImei(product.imei || '');
+                          setSalePrice(product.sellingPrice?.toString() || '');
+                          setPurchasePrice(product.purchasePrice?.toString() || '');
+                          setBrand(product.brand || '');
+                          setModel(product.model || '');
+                          setQuantity(1);
                         } else {
-                          const cust = customers.find((c) => c._id === value);
-                          setCustomer(cust);
+                          setPurchasePrice('');
+                          setBrand('');
+                          setModel('');
                         }
                       }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose customer or walk-in" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="walk-in">Walk-in Customer</SelectItem>
-                        {customers.map((cust) => (
-                          <SelectItem key={cust._id} value={cust._id}>
-                            {cust.name} - {cust.phone}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Search product..."
+                      searchPlaceholder="Search by name, brand, model, price..."
+                      emptyText="No products found"
+                    />
                   </div>
-                  <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <User className="w-4 h-4 mr-2" />
-                        Add New Customer
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add New Customer</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Name *</Label>
-                          <Input
-                            value={newCustomer.name}
-                            onChange={(e) =>
-                              setNewCustomer({ ...newCustomer, name: e.target.value })
-                            }
-                            placeholder="Customer name"
-                          />
-                        </div>
-                        <div>
-                          <Label>Phone *</Label>
-                          <Input
-                            value={newCustomer.phone}
-                            onChange={(e) =>
-                              setNewCustomer({ ...newCustomer, phone: e.target.value })
-                            }
-                            placeholder="Phone number"
-                          />
-                        </div>
-                        <div>
-                          <Label>Email</Label>
-                          <Input
-                            type="email"
-                            value={newCustomer.email}
-                            onChange={(e) =>
-                              setNewCustomer({ ...newCustomer, email: e.target.value })
-                            }
-                            placeholder="Email address"
-                          />
-                        </div>
-                        <div>
-                          <Label>Address</Label>
-                          <Input
-                            value={newCustomer.address}
-                            onChange={(e) =>
-                              setNewCustomer({ ...newCustomer, address: e.target.value })
-                            }
-                            placeholder="Address"
-                          />
-                        </div>
-                        <Button
-                          onClick={handleAddCustomer}
-                          className="w-full"
-                          disabled={savingCustomer}
-                        >
-                          {savingCustomer && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                          Add Customer
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Add Products</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-3">
-                      <Label>Product</Label>
-                      <Combobox
-                        options={products.map((product) => ({
-                          value: product._id,
-                          label: `${product.name || ''}${
-                            product.brand ? ` | Brand: ${product.brand}` : ''
-                          }${product.model ? ` | Model: ${product.model}` : ''}${
-                            product.sellingPrice
-                              ? ` | Sale: ${formatCurrency(product.sellingPrice)}`
-                              : ''
-                          }`,
-                          displayLabel: product.name || '',
-                        }))}
-                        value={selectedProduct}
-                        onValueChange={(value) => {
-                          setSelectedProduct(value);
-                          const product = products.find((p) => p._id === value);
-                          if (product) {
-                            setImei(product.imei || '');
-                            setSalePrice(product.sellingPrice?.toString() || '');
-                            setPurchasePrice(product.purchasePrice?.toString() || '');
-                            setBrand(product.brand || '');
-                            setModel(product.model || '');
-                            setQuantity(1);
-                          } else {
-                            setPurchasePrice('');
-                            setBrand('');
-                            setModel('');
-                          }
-                        }}
-                        placeholder="Search product..."
-                        searchPlaceholder="Search by name, brand, model, price..."
-                        emptyText="No products found"
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <Label>Purchase Price (PKR)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={purchasePrice}
-                        onChange={(e) => setPurchasePrice(e.target.value)}
-                        placeholder={selectedProd?.purchasePrice?.toString() || '0.00'}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <Label>Sale Price (PKR) *</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={salePrice}
-                        onChange={(e) => setSalePrice(e.target.value)}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <Label>Profit / Loss</Label>
-                      <div
-                        className={`h-10 rounded-md border px-3 py-2 text-sm font-medium ${
-                          previewProfitLoss < 0
-                            ? 'border-red-200 bg-red-50 text-red-700'
-                            : 'border-green-200 bg-green-50 text-green-700'
-                        }`}
-                      >
-                        {previewProfitLoss < 0 ? 'Loss: ' : 'Profit: '}
-                        {formatCurrency(Math.abs(previewProfitLoss))}
-                      </div>
-                    </div>
-                    <div className="col-span-3">
-                      {selectedProd?.imei ? (
-                        <div>
-                          <Label>IMEI Number</Label>
-                          <Input
-                            value={imei}
-                            onChange={(e) => setImei(e.target.value)}
-                            placeholder="IMEI number"
-                            disabled={!!selectedProd?.imei}
-                            className={selectedProd?.imei ? 'bg-slate-50' : ''}
-                          />
-                          {selectedProd?.imei && (
-                            <p className="text-xs text-slate-500 mt-1">Auto-filled from product</p>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          <Label>Quantity (Max: {maxQuantity})</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            max={maxQuantity}
-                            value={quantity}
-                            onChange={(e) =>
-                              setQuantity(Math.min(parseInt(e.target.value) || 1, maxQuantity))
-                            }
-                          />
-                        </div>
+                  <div>
+                    <Label>Purchase Price (PKR)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={purchasePrice}
+                      onChange={(e) => setPurchasePrice(e.target.value)}
+                      placeholder={selectedProd?.purchasePrice?.toString() || '0.00'}
+                      className="rounded-xl mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Sale Price (PKR) *</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={salePrice}
+                      onChange={(e) => setSalePrice(e.target.value)}
+                      placeholder="0.00"
+                      className="rounded-xl mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Profit / Loss</Label>
+                    <div
+                      className={cn(
+                        'mt-1.5 h-10 rounded-xl border px-3 py-2 text-sm font-semibold flex items-center',
+                        previewProfitLoss < 0
+                          ? 'border-red-200 bg-gradient-to-r from-red-50 to-rose-50 text-red-700'
+                          : 'border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 text-green-700'
                       )}
-                    </div>
-                    <div className="col-span-3">
-                      <Label>Brand</Label>
-                      <Input
-                        value={brand}
-                        onChange={(e) => setBrand(e.target.value)}
-                        placeholder={selectedProd?.brand || 'Brand'}
-                      />
-                    </div>
-                    <div className="col-span-3">
-                      <Label>Model</Label>
-                      <Input
-                        value={model}
-                        onChange={(e) => setModel(e.target.value)}
-                        placeholder={selectedProd?.model || 'Model'}
-                      />
+                    >
+                      {previewProfitLoss < 0 ? 'Loss: ' : 'Profit: '}
+                      {formatCurrency(Math.abs(previewProfitLoss))}
                     </div>
                   </div>
                   <div>
-                    <Button onClick={addItem} className="w-full">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Item
-                    </Button>
+                    {selectedProd?.imei ? (
+                      <div>
+                        <Label>IMEI Number</Label>
+                        <Input
+                          value={imei}
+                          onChange={(e) => setImei(e.target.value)}
+                          placeholder="IMEI number"
+                          disabled={!!selectedProd?.imei}
+                          className={cn('rounded-xl mt-1.5', selectedProd?.imei && 'bg-slate-50')}
+                        />
+                        {selectedProd?.imei && (
+                          <p className="text-xs text-slate-500 mt-1">Auto-filled from product</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <Label>Quantity (Max: {maxQuantity})</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max={maxQuantity}
+                          value={quantity}
+                          onChange={(e) =>
+                            setQuantity(Math.min(parseInt(e.target.value) || 1, maxQuantity))
+                          }
+                          className="rounded-xl mt-1.5"
+                        />
+                      </div>
+                    )}
                   </div>
+                  <div>
+                    <Label>Brand</Label>
+                    <Input
+                      value={brand}
+                      onChange={(e) => setBrand(e.target.value)}
+                      placeholder={selectedProd?.brand || 'Brand'}
+                      className="rounded-xl mt-1.5"
+                    />
+                  </div>
+                  <div>
+                    <Label>Model</Label>
+                    <Input
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder={selectedProd?.model || 'Model'}
+                      className="rounded-xl mt-1.5"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={addItem}
+                  className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 border-0 shadow-md shadow-emerald-200/50"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Item
+                </Button>
 
-                  {items.length > 0 && (
-                    <div className="border rounded-lg">
+                {items.length > 0 && (
+                  <>
+                    {/* Mobile item cards */}
+                    <div className="space-y-2 md:hidden">
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-900 truncate">{item.product.name}</p>
+                              <p className="text-xs font-mono text-indigo-600 mt-0.5">
+                                {item.imei ? item.imei : `Qty: ${item.quantity}`}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeItem(item.id)}
+                              className="shrink-0 text-red-600 hover:bg-red-50 rounded-lg"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                            <div className="rounded-lg bg-slate-50 px-2 py-1.5">
+                              <p className="text-slate-500">Price</p>
+                              <p className="font-semibold">{formatCurrency(item.price)}</p>
+                            </div>
+                            <div
+                              className={cn(
+                                'rounded-lg px-2 py-1.5',
+                                item.price - item.purchasePrice < 0 ? 'bg-red-50' : 'bg-green-50'
+                              )}
+                            >
+                              <p className="text-slate-500">P/L</p>
+                              <p
+                                className={cn(
+                                  'font-semibold',
+                                  item.price - item.purchasePrice < 0 ? 'text-red-600' : 'text-green-600'
+                                )}
+                              >
+                                {item.price - item.purchasePrice < 0 ? '-' : '+'}
+                                {formatCurrency(
+                                  Math.abs((item.price - item.purchasePrice) * item.quantity)
+                                )}
+                              </p>
+                            </div>
+                            <div className="rounded-lg bg-emerald-50 px-2 py-1.5">
+                              <p className="text-emerald-600">Total</p>
+                              <p className="font-bold text-emerald-800">{formatCurrency(item.total)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop table */}
+                    <div className="hidden md:block overflow-x-auto rounded-xl ring-1 ring-slate-200/70">
                       <Table>
                         <TableHeader>
-                          <TableRow>
+                          <TableRow className="bg-gradient-to-r from-slate-50 to-emerald-50/50">
                             <TableHead>Product</TableHead>
                             <TableHead>IMEI / Qty</TableHead>
                             <TableHead>Price</TableHead>
@@ -655,11 +768,11 @@ export default function NewSalePage() {
                         </TableHeader>
                         <TableBody>
                           {items.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell>{item.product.name}</TableCell>
+                            <TableRow key={item.id} className="hover:bg-emerald-50/20">
+                              <TableCell className="font-medium">{item.product.name}</TableCell>
                               <TableCell className="font-mono text-sm">
                                 {item.imei ? (
-                                  <span className="text-blue-600">{item.imei}</span>
+                                  <span className="text-indigo-600">{item.imei}</span>
                                 ) : (
                                   `Qty: ${item.quantity}`
                                 )}
@@ -668,8 +781,8 @@ export default function NewSalePage() {
                               <TableCell
                                 className={
                                   item.price - item.purchasePrice < 0
-                                    ? 'font-medium text-red-600'
-                                    : 'font-medium text-green-600'
+                                    ? 'font-semibold text-red-600'
+                                    : 'font-semibold text-green-600'
                                 }
                               >
                                 {item.price - item.purchasePrice < 0 ? '-' : '+'}
@@ -677,7 +790,7 @@ export default function NewSalePage() {
                                   Math.abs((item.price - item.purchasePrice) * item.quantity)
                                 )}
                               </TableCell>
-                              <TableCell className="font-medium">
+                              <TableCell className="font-bold text-emerald-700">
                                 {formatCurrency(item.total)}
                               </TableCell>
                               <TableCell>
@@ -685,8 +798,9 @@ export default function NewSalePage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => removeItem(item.id)}
+                                  className="text-red-600 hover:bg-red-50 rounded-lg"
                                 >
-                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -694,49 +808,53 @@ export default function NewSalePage() {
                         </TableBody>
                       </Table>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  </>
+                )}
+              </div>
+            </ColorCard>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Additional Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any notes..."
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <ColorCard
+              title="Additional Details"
+              headerClassName="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100/50 text-amber-900"
+            >
+              <div>
+                <Label>Notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any notes..."
+                  rows={3}
+                  className="rounded-xl mt-1.5 resize-none"
+                />
+              </div>
+            </ColorCard>
           </div>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Sale Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
+          <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-20 lg:self-start">
+            <ColorCard
+              title="Sale Summary"
+              headerClassName="bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-100/50 text-indigo-900"
+            >
+              <div className="space-y-4">
+                <div className="space-y-2.5">
+                  <div className="flex justify-between text-sm rounded-xl bg-slate-50 px-3 py-2">
                     <span className="text-slate-600">Items</span>
-                    <span>{items.length}</span>
+                    <span className="font-semibold">{items.length}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm rounded-xl bg-slate-50 px-3 py-2">
                     <span className="text-slate-600">Total Quantity</span>
-                    <span>{totalQuantity}</span>
+                    <span className="font-semibold">{totalQuantity}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div
+                    className={cn(
+                      'flex justify-between text-sm rounded-xl px-3 py-2',
+                      totalProfitLoss < 0 ? 'bg-red-50' : 'bg-green-50'
+                    )}
+                  >
                     <span className="text-slate-600">Profit / Loss</span>
                     <span
                       className={
-                        totalProfitLoss < 0 ? 'font-medium text-red-600' : 'font-medium text-green-600'
+                        totalProfitLoss < 0 ? 'font-bold text-red-600' : 'font-bold text-green-600'
                       }
                     >
                       {totalProfitLoss < 0 ? '-' : '+'}
@@ -744,30 +862,30 @@ export default function NewSalePage() {
                     </span>
                   </div>
                   {customer && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-600">Customer</span>
-                      <span className="font-medium">{customer.name}</span>
+                    <div className="flex justify-between text-sm rounded-xl bg-cyan-50 px-3 py-2">
+                      <span className="text-cyan-700">Customer</span>
+                      <span className="font-semibold text-cyan-900">{customer.name}</span>
                     </div>
                   )}
                 </div>
-                <div className="border-t pt-4">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span>{formatCurrency(total)}</span>
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 p-4 text-white shadow-lg shadow-indigo-200/50">
+                  <div className="flex justify-between items-center">
+                    <span className="text-indigo-100">Grand Total</span>
+                    <span className="text-2xl font-bold">{formatCurrency(total)}</span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </ColorCard>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <ColorCard
+              title="Payment"
+              headerClassName="bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-100/50 text-violet-900"
+            >
+              <div className="space-y-4">
                 <div>
                   <Label>Payment Mode</Label>
                   <Select value={paymentMode} onValueChange={setPaymentMode}>
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl mt-1.5">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -788,23 +906,27 @@ export default function NewSalePage() {
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(e.target.value)}
                     placeholder={total.toString()}
+                    className="rounded-xl mt-1.5"
                   />
-                  <p className="text-sm text-slate-500 mt-1">
-                    Leave empty for full payment
-                  </p>
+                  <p className="text-sm text-slate-500 mt-1.5">Leave empty for full payment</p>
                   {paidAmount && parseFloat(paidAmount) < total && (
-                    <p className="text-sm text-orange-600 mt-1">
+                    <p className="text-sm font-medium text-orange-600 mt-1.5 rounded-lg bg-orange-50 px-3 py-2">
                       Balance: {formatCurrency(total - parseFloat(paidAmount))}
                     </p>
                   )}
                 </div>
-                <Button onClick={handleSave} className="w-full" size="lg" disabled={saving}>
+                <Button
+                  onClick={handleSave}
+                  className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 border-0 shadow-lg shadow-violet-300/40"
+                  size="lg"
+                  disabled={saving || items.length === 0}
+                >
                   {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   <Save className="w-4 h-4 mr-2" />
                   Save Sale
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </ColorCard>
           </div>
         </div>
       </div>

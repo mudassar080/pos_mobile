@@ -32,11 +32,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50/80">
       <Sidebar />
-      <div className="ml-64">
+      <div className="lg:ml-64 min-w-0">
         <Header />
-        <main className="mt-16 p-6">
+        <main className="mt-14 sm:mt-16 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
       </div>

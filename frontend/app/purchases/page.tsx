@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -25,17 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import {
-  Plus,
-  Loader2,
-  Eye,
-  Pencil,
-  Trash2,
-  MoreVertical,
-} from 'lucide-react';
-import Link from 'next/link';
-import { purchasesApi } from '@/lib/api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,17 +36,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import {
+  Loader2,
+  Eye,
+  Pencil,
+  Trash2,
+  MoreVertical,
+  Search,
+  Package,
+  DollarSign,
+  Wallet,
+  CreditCard,
+} from 'lucide-react';
+import { purchasesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import {
+  ColorCard,
+  formatSaleDate,
+  formatSaleDateShort,
+  getStatusBadge,
+  NewPurchaseButton,
+  PURCHASE_GRADIENT,
+  SalesPageHero,
+  SummaryStat,
+} from '@/components/purchases/purchases-ui';
 
 export default function PurchasesPage() {
   const { toast } = useToast();
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteTarget, setDeleteTarget] = useState<{
-    id: string;
-    num: string;
-  } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; num: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [detailsPurchase, setDetailsPurchase] = useState<any | null>(null);
 
@@ -82,24 +94,16 @@ export default function PurchasesPage() {
     fetchPurchases();
   }, []);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge className="bg-green-600">Paid</Badge>;
-      case 'partial':
-        return <Badge className="bg-orange-600">Partial</Badge>;
-      case 'credit':
-        return <Badge className="bg-red-600">Credit</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-slate-600">Cancelled</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
+  const filteredPurchases = purchases.filter(
+    (p) =>
+      p.purchaseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.supplierName?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString();
-  };
+  const activePurchases = filteredPurchases.filter((p) => p.status !== 'cancelled');
+  const totalAmount = activePurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const totalPaid = activePurchases.reduce((sum, p) => sum + (p.paid || 0), 0);
+  const totalBalance = totalAmount - totalPaid;
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -127,63 +131,97 @@ export default function PurchasesPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Purchases</h1>
-            <p className="text-slate-600">Manage inventory purchases</p>
-          </div>
-          <Link href="/purchases/new">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Purchase
-            </Button>
-          </Link>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Purchases"
+          description="Manage inventory purchases from suppliers"
+          badge="Inventory"
+          gradient={PURCHASE_GRADIENT}
+          actions={<NewPurchaseButton />}
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Total Purchases"
+            value={String(activePurchases.length)}
+            icon={Package}
+            theme="bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-900 ring-1 ring-blue-100"
+          />
+          <SummaryStat
+            label="Total Amount"
+            value={formatCurrency(totalAmount)}
+            icon={DollarSign}
+            theme="bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-900 ring-1 ring-indigo-100"
+          />
+          <SummaryStat
+            label="Paid"
+            value={formatCurrency(totalPaid)}
+            icon={CreditCard}
+            theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
+          />
+          <SummaryStat
+            label="Outstanding"
+            value={formatCurrency(totalBalance)}
+            icon={Wallet}
+            theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
+          />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Purchase History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Purchase #</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Items</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Paid</TableHead>
-                    <TableHead>Balance</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {purchases.map((purchase) => (
-                    <TableRow key={purchase._id}>
-                      <TableCell className="font-medium">{purchase.purchaseNumber}</TableCell>
-                      <TableCell>{formatDate(purchase.date)}</TableCell>
-                      <TableCell>{purchase.supplierName}</TableCell>
-                      <TableCell>{purchase.itemsCount || purchase.items?.length || 0}</TableCell>
-                      <TableCell>{formatCurrency(purchase.amount)}</TableCell>
-                      <TableCell>{formatCurrency(purchase.paid)}</TableCell>
-                      <TableCell className="text-red-600 font-medium">
-                        {formatCurrency(purchase.balance || (purchase.amount - purchase.paid))}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(purchase.status)}</TableCell>
-                      <TableCell>
+        <ColorCard
+          title="Purchase History"
+          headerClassName="bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 border-indigo-100/50 text-indigo-900"
+        >
+          <div className="mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by purchase # or supplier..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                {filteredPurchases.map((purchase) => {
+                  const balance = purchase.balance ?? purchase.amount - purchase.paid;
+                  return (
+                    <div
+                      key={purchase._id}
+                      className="rounded-2xl border border-indigo-100/80 bg-gradient-to-br from-white to-blue-50/30 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-indigo-800">{purchase.purchaseNumber}</p>
+                          <p className="text-sm text-slate-600 truncate">{purchase.supplierName}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {formatSaleDateShort(purchase.date)}
+                          </p>
+                        </div>
+                        {getStatusBadge(purchase.status)}
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-xl bg-indigo-50 px-3 py-2">
+                          <p className="text-xs text-indigo-600">Amount</p>
+                          <p className="font-bold text-indigo-800">{formatCurrency(purchase.amount)}</p>
+                        </div>
+                        <div className="rounded-xl bg-rose-50 px-3 py-2">
+                          <p className="text-xs text-rose-600">Balance</p>
+                          <p className="font-bold text-rose-800">{formatCurrency(balance)}</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex justify-end">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button variant="outline" size="sm" className="rounded-lg">
                               <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -191,27 +229,19 @@ export default function PurchasesPage() {
                               <Eye className="mr-2 h-4 w-4" />
                               View details
                             </DropdownMenuItem>
-                            {purchase.status !== 'cancelled' ? (
+                            {purchase.status !== 'cancelled' && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/purchases/${purchase._id}/edit`}>
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Edit purchase
                                 </Link>
                               </DropdownMenuItem>
-                            ) : (
-                              <DropdownMenuItem disabled>
-                                <Pencil className="mr-2 h-4 w-4 opacity-50" />
-                                Edit purchase (cancelled)
-                              </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-red-600 focus:text-red-600"
                               onSelect={() =>
-                                setDeleteTarget({
-                                  id: purchase._id,
-                                  num: purchase.purchaseNumber,
-                                })
+                                setDeleteTarget({ id: purchase._id, num: purchase.purchaseNumber })
                               }
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
@@ -219,21 +249,109 @@ export default function PurchasesPage() {
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </TableCell>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredPurchases.length === 0 && (
+                  <div className="rounded-2xl bg-slate-50 py-10 text-center text-slate-500 text-sm">
+                    No purchases found
+                  </div>
+                )}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto rounded-xl ring-1 ring-indigo-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50/80 hover:from-blue-50 hover:to-indigo-50/80">
+                      <TableHead>Purchase #</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Supplier</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Paid</TableHead>
+                      <TableHead>Balance</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                  {purchases.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-slate-500">
-                        No purchases found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPurchases.map((purchase) => (
+                      <TableRow key={purchase._id} className="hover:bg-indigo-50/20">
+                        <TableCell className="font-semibold text-indigo-800">
+                          {purchase.purchaseNumber}
+                        </TableCell>
+                        <TableCell className="text-slate-600">{formatSaleDate(purchase.date)}</TableCell>
+                        <TableCell>{purchase.supplierName}</TableCell>
+                        <TableCell>{purchase.itemsCount || purchase.items?.length || 0}</TableCell>
+                        <TableCell className="font-medium text-indigo-700">
+                          {formatCurrency(purchase.amount)}
+                        </TableCell>
+                        <TableCell className="font-medium text-emerald-700">
+                          {formatCurrency(purchase.paid)}
+                        </TableCell>
+                        <TableCell className="text-red-600 font-semibold">
+                          {formatCurrency(purchase.balance || purchase.amount - purchase.paid)}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(purchase.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onSelect={() => setDetailsPurchase(purchase)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View details
+                                </DropdownMenuItem>
+                                {purchase.status !== 'cancelled' ? (
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/purchases/${purchase._id}/edit`}>
+                                      <Pencil className="mr-2 h-4 w-4" />
+                                      Edit purchase
+                                    </Link>
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem disabled>
+                                    <Pencil className="mr-2 h-4 w-4 opacity-50" />
+                                    Edit (cancelled)
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onSelect={() =>
+                                    setDeleteTarget({
+                                      id: purchase._id,
+                                      num: purchase.purchaseNumber,
+                                    })
+                                  }
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredPurchases.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-10 text-slate-500">
+                          No purchases found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </ColorCard>
 
         <Dialog
           open={detailsPurchase !== null}
@@ -241,50 +359,62 @@ export default function PurchasesPage() {
             if (!open) setDetailsPurchase(null);
           }}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
             {detailsPurchase ? (
               <>
                 <DialogHeader>
-                  <DialogTitle>
+                  <DialogTitle className="text-indigo-900">
                     Purchase Details — {detailsPurchase.purchaseNumber}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-slate-600">Supplier</p>
-                      <p className="font-medium">{detailsPurchase.supplierName}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Date</p>
-                      <p className="font-medium">{formatDate(detailsPurchase.date)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Total Amount</p>
-                      <p className="font-medium text-lg">
-                        {formatCurrency(detailsPurchase.amount)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600">Payment Status</p>
-                      <p className="font-medium">{getStatusBadge(detailsPurchase.status)}</p>
-                    </div>
-                  </div>
-                  <div className="border-t pt-4">
-                    <h4 className="font-semibold mb-2">Items</h4>
-                    {detailsPurchase.items?.map((item: any, idx: number) => (
-                      <div key={idx} className="flex justify-between text-sm py-1">
-                        <span>
-                          {item.productName} x {item.quantity}
-                        </span>
-                        <span>{formatCurrency(item.total)}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {[
+                      { label: 'Supplier', value: detailsPurchase.supplierName },
+                      {
+                        label: 'Date',
+                        value: formatSaleDate(detailsPurchase.date),
+                      },
+                      {
+                        label: 'Total Amount',
+                        value: formatCurrency(detailsPurchase.amount),
+                        highlight: 'text-indigo-700 font-bold',
+                      },
+                      { label: 'Status', value: null, badge: detailsPurchase.status },
+                    ].map((field) => (
+                      <div key={field.label} className="rounded-xl bg-slate-50 p-3">
+                        <p className="text-xs text-slate-500">{field.label}</p>
+                        {field.badge ? (
+                          <div className="mt-1">{getStatusBadge(field.badge)}</div>
+                        ) : (
+                          <p className={`font-semibold mt-0.5 ${field.highlight || ''}`}>
+                            {field.value}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
-                  <div className="border-t pt-4">
-                    <h4 className="font-semibold mb-2">Payment History</h4>
-                    {detailsPurchase.paymentHistory &&
-                    detailsPurchase.paymentHistory.length > 0 ? (
+                  <div>
+                    <h4 className="font-semibold mb-2 text-slate-800">Items</h4>
+                    <div className="space-y-2">
+                      {detailsPurchase.items?.map((item: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between rounded-xl bg-indigo-50/60 px-3 py-2 text-sm"
+                        >
+                          <span>
+                            {item.productName} x {item.quantity}
+                          </span>
+                          <span className="font-semibold text-indigo-800">
+                            {formatCurrency(item.total)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold mb-2 text-slate-800">Payment History</h4>
+                    {detailsPurchase.paymentHistory?.length > 0 ? (
                       <div className="space-y-2">
                         {[...detailsPurchase.paymentHistory]
                           .sort(
@@ -294,19 +424,18 @@ export default function PurchasesPage() {
                           .map((payment: any, idx: number) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between rounded-md border p-2 text-sm"
+                              className="flex items-center justify-between rounded-xl bg-violet-50/80 ring-1 ring-violet-100 p-3 text-sm"
                             >
                               <div>
-                                <p className="font-medium">
-                                  {formatCurrency(payment.amount)} (
-                                  {payment.paymentMode || 'Cash'})
+                                <p className="font-semibold text-violet-900">
+                                  {formatCurrency(payment.amount)} ({payment.paymentMode || 'Cash'})
                                 </p>
                                 <p className="text-slate-500">
                                   {payment.note || payment.source || 'Payment'}
                                 </p>
                               </div>
-                              <span className="text-slate-500">
-                                {payment.date ? formatDate(payment.date) : '-'}
+                              <span className="text-slate-500 shrink-0">
+                                {payment.date ? formatSaleDate(payment.date) : '-'}
                               </span>
                             </div>
                           ))}
@@ -315,6 +444,14 @@ export default function PurchasesPage() {
                       <p className="text-sm text-slate-500">No payment history available</p>
                     )}
                   </div>
+                  {detailsPurchase.status !== 'cancelled' && (
+                    <Link href={`/purchases/${detailsPurchase._id}/edit`}>
+                      <Button className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border-0">
+                        <Pencil className="w-4 h-4 mr-2" />
+                        Edit Purchase
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </>
             ) : null}
@@ -327,32 +464,29 @@ export default function PurchasesPage() {
             if (!open && !deleting) setDeleteTarget(null);
           }}
         >
-          <AlertDialogContent>
+          <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this purchase?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently remove{' '}
-                <strong>{deleteTarget?.num}</strong> from your records.
+                This will permanently remove <strong>{deleteTarget?.num}</strong> from your records.
                 {(purchases.find((p) => p._id === deleteTarget?.id)?.status as string) !==
                   'cancelled' && (
-                  <>
-                    {' '}
-                    Stock and supplier payables will be reversed to match deleting this entry.
-                  </>
-                )}
-                {' '}
+                  <> Stock and supplier payables will be reversed.</>
+                )}{' '}
                 You cannot delete a purchase that still has linked purchase returns.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={deleting} className="rounded-xl">
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 onClick={(e) => {
                   e.preventDefault();
                   confirmDelete();
                 }}
                 disabled={deleting}
-                className="bg-red-600 focus:ring-red-600 hover:bg-red-700"
+                className="rounded-xl bg-red-600 hover:bg-red-700"
               >
                 {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Delete

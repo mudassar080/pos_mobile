@@ -1,11 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { MainLayout } from "@/components/layout/main-layout";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { useState, useEffect } from 'react';
+import { MainLayout } from '@/components/layout/main-layout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -13,19 +11,64 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Plus, Search, Edit, Trash2, Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { formatCurrency } from "@/utils/constant";
-import { Combobox } from "@/components/ui/combobox";
-import { productsApi } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Search,
+  Edit,
+  Trash2,
+  Loader2,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Package,
+  Boxes,
+  Tag,
+  DollarSign,
+} from 'lucide-react';
+import { formatCurrency } from '@/utils/constant';
+import { productsApi } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import {
+  ColorCard,
+  NewProductButton,
+  PRODUCT_GRADIENT,
+  SalesPageHero,
+  SummaryStat,
+} from '@/components/products/products-ui';
+import { ProductFormDialog } from '@/components/products/product-form-dialog';
+
+function ProfitIndicator({ profit }: { profit: number | null }) {
+  if (profit === null) return null;
+  if (profit > 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+        <TrendingUp className="h-3 w-3" />
+      </span>
+    );
+  }
+  if (profit < 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">
+        <TrendingDown className="h-3 w-3" />
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">
+      <Minus className="h-3 w-3" />
+    </span>
+  );
+}
 
 export default function ProductsPage() {
   const { toast } = useToast();
@@ -33,38 +76,37 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // Form state
   const [formData, setFormData] = useState({
-    name: "",
-    category: "",
-    brand: "",
-    model: "",
+    name: '',
+    category: '',
+    brand: '',
+    model: '',
   });
 
-  // Fetch products
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await productsApi.getAll({ limit: "100" });
+      const response = await productsApi.getAll({ limit: '100' });
       if (response.success && response.data) {
         setProducts(response.data);
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to fetch products",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to fetch products',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch categories
   const fetchCategories = async () => {
     try {
       const response = await productsApi.getCategories();
@@ -72,7 +114,7 @@ export default function ProductsPage() {
         setCategories(response.data);
       }
     } catch (error) {
-      console.error("Failed to fetch categories");
+      console.error('Failed to fetch categories');
     }
   };
 
@@ -89,24 +131,25 @@ export default function ProductsPage() {
       product.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalStock = products.reduce((sum, p) => sum + (p.quantity ?? 0), 0);
+  const inStockCount = products.filter((p) => (p.quantity ?? 0) > 0).length;
+  const pricedCount = products.filter(
+    (p) => p.sellingPrice != null && p.sellingPrice > 0
+  ).length;
+
   const handleOpenAddDialog = () => {
     setEditingProduct(null);
-    setFormData({
-      name: "",
-      category: "",
-      brand: "",
-      model: "",
-    });
+    setFormData({ name: '', category: '', brand: '', model: '' });
     setShowAddDialog(true);
   };
 
   const handleOpenEditDialog = (product: any) => {
     setEditingProduct(product);
     setFormData({
-      name: product.name || "",
-      category: product.category || "",
-      brand: product.brand || "",
-      model: product.model || "",
+      name: product.name || '',
+      category: product.category || '',
+      brand: product.brand || '',
+      model: product.model || '',
     });
     setShowAddDialog(true);
   };
@@ -114,9 +157,9 @@ export default function ProductsPage() {
   const handleSaveProduct = async () => {
     if (!formData.name) {
       toast({
-        title: "Validation Error",
-        description: "Please select or enter an Item Name",
-        variant: "destructive",
+        title: 'Validation Error',
+        description: 'Please select or enter an Item Name',
+        variant: 'destructive',
       });
       return;
     }
@@ -126,38 +169,24 @@ export default function ProductsPage() {
       const toTitleCase = (str: string) =>
         str
           .toLowerCase()
-          .split(" ")
+          .split(' ')
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(" ")
+          .join(' ')
           .trim();
 
-      const name = formData.name ? toTitleCase(formData.name) : "";
-      const brand = formData.brand ? toTitleCase(formData.brand) : "";
-      const model = formData.model ? toTitleCase(formData.model) : "";
+      const name = formData.name ? toTitleCase(formData.name) : '';
+      const brand = formData.brand ? toTitleCase(formData.brand) : '';
+      const model = formData.model ? toTitleCase(formData.model) : '';
+      const itemCategory = [name, brand, model].filter(Boolean).join(' - ');
 
-      const itemCategory = [name, brand, model]
-        .filter(Boolean)
-        .join(" - ");
-
-      const productData: any = {
-        name,
-        category: itemCategory,
-        brand,
-        model,
-      };
+      const productData = { name, category: itemCategory, brand, model };
 
       if (editingProduct) {
         await productsApi.update(editingProduct._id, productData);
-        toast({
-          title: "Success",
-          description: "Product updated successfully",
-        });
+        toast({ title: 'Success', description: 'Product updated successfully' });
       } else {
         await productsApi.create(productData);
-        toast({
-          title: "Success",
-          description: "Product created successfully",
-        });
+        toast({ title: 'Success', description: 'Product created successfully' });
       }
 
       setShowAddDialog(false);
@@ -166,224 +195,318 @@ export default function ProductsPage() {
       fetchCategories();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to save product",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to save product',
+        variant: 'destructive',
       });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
-
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await productsApi.delete(id);
-      toast({
-        title: "Success",
-        description: "Product deleted successfully",
-      });
+      await productsApi.delete(deleteTarget.id);
+      toast({ title: 'Success', description: 'Product deleted successfully' });
+      setDeleteTarget(null);
       fetchProducts();
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: error.message || "Failed to delete product",
-        variant: "destructive",
+        title: 'Error',
+        description: error.message || 'Failed to delete product',
+        variant: 'destructive',
       });
+    } finally {
+      setDeleting(false);
     }
   };
 
-  // Build unique item name options from existing products
   const itemNameOptions = Array.from(
     new Set(products.map((p) => p.name).filter(Boolean))
   ).map((name) => ({ value: name, label: name }));
 
-  const handleItemNameChange = (value: string) => {
-    setFormData({ ...formData, name: value });
-  };
-
-  const handleCreateItemName = (newName: string) => {
-    setFormData({ ...formData, name: newName });
-  };
-
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Products</h1>
-            <p className="text-slate-600">Manage your product catalog</p>
-          </div>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button onClick={handleOpenAddDialog}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Product
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingProduct ? "Edit Product" : "Add New Product"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Item Name *</Label>
-                  <Combobox
-                    options={itemNameOptions}
-                    value={formData.name}
-                    onValueChange={handleItemNameChange}
-                    placeholder="Search or create item name"
-                    searchPlaceholder="Search items..."
-                    emptyText="No items found"
-                    allowCreate
-                    onCreateNew={handleCreateItemName}
-                  />
-                </div>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Products"
+          description="Manage your product catalog and inventory items"
+          badge="Catalog"
+          gradient={PRODUCT_GRADIENT}
+          actions={<NewProductButton onClick={handleOpenAddDialog} />}
+        />
 
-                <div>
-                  <Label>Brand</Label>
-                  <Input
-                    value={formData.brand}
-                    onChange={(e) =>
-                      setFormData({ ...formData, brand: e.target.value })
-                    }
-                    placeholder="e.g., Apple, Samsung"
-                  />
-                </div>
-
-                <div>
-                  <Label>Model</Label>
-                  <Input
-                    value={formData.model}
-                    onChange={(e) =>
-                      setFormData({ ...formData, model: e.target.value })
-                    }
-                    placeholder="e.g., 15 Pro Max"
-                  />
-                </div>
-
-                <Button onClick={handleSaveProduct} className="w-full" disabled={saving}>
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {editingProduct ? "Update Product" : "Add Product"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Total Products"
+            value={loading ? '-' : String(products.length)}
+            icon={Package}
+            theme="bg-gradient-to-br from-sky-50 to-cyan-100 text-sky-900 ring-1 ring-sky-100"
+          />
+          <SummaryStat
+            label="Total Stock"
+            value={loading ? '-' : String(totalStock)}
+            icon={Boxes}
+            theme="bg-gradient-to-br from-cyan-50 to-teal-100 text-cyan-900 ring-1 ring-cyan-100"
+          />
+          <SummaryStat
+            label="In Stock"
+            value={loading ? '-' : String(inStockCount)}
+            icon={TrendingUp}
+            theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
+          />
+          <SummaryStat
+            label="With Sale Price"
+            value={loading ? '-' : String(pricedCount)}
+            icon={DollarSign}
+            theme="bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-900 ring-1 ring-teal-100"
+          />
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Product List</CardTitle>
-              <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item Code</TableHead>
-                    <TableHead>Item Name</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Model</TableHead>
-                    <TableHead>IMEI</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Purchase Price</TableHead>
-                    <TableHead>Selling Price</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map((product) => {
-                    const hasSellingPrice = product.sellingPrice != null && product.sellingPrice > 0;
-                    const profit = hasSellingPrice ? product.sellingPrice - product.purchasePrice : null;
+        {!loading && categories.length > 0 && (
+          <div className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-4 py-2 text-sm text-cyan-800 ring-1 ring-cyan-100">
+            <Tag className="h-4 w-4" />
+            <strong>{categories.length}</strong> categories in catalog
+          </div>
+        )}
 
-                    return (
-                    <TableRow key={product._id}>
-                      <TableCell>
-                        {product.category || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {product.name}
-                          {profit !== null && profit > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
-                              <TrendingUp className="w-3 h-3" />
-                            </span>
-                          )}
-                          {profit !== null && profit < 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-                              <TrendingDown className="w-3 h-3" />
-                            </span>
-                          )}
-                          {profit !== null && profit === 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5">
-                              <Minus className="w-3 h-3" />
-                            </span>
-                          )}
+        <ColorCard
+          title="Product List"
+          headerClassName="bg-gradient-to-r from-sky-50 via-cyan-50 to-teal-50 border-cyan-100/50 text-cyan-900"
+        >
+          <div className="mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by name, brand, model..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                {filteredProducts.map((product) => {
+                  const hasSellingPrice =
+                    product.sellingPrice != null && product.sellingPrice > 0;
+                  const profit = hasSellingPrice
+                    ? product.sellingPrice - product.purchasePrice
+                    : null;
+
+                  return (
+                    <div
+                      key={product._id}
+                      className="rounded-2xl border border-cyan-100/80 bg-gradient-to-br from-white to-cyan-50/30 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-cyan-900">{product.name}</p>
+                            <ProfitIndicator profit={profit} />
+                          </div>
+                          <p className="text-sm text-slate-600 mt-0.5">
+                            {[product.brand, product.model].filter(Boolean).join(' · ') || '—'}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-0.5 truncate">
+                            {product.category || 'No code'}
+                          </p>
                         </div>
-                      </TableCell>
-                      <TableCell>{product.brand || "-"}</TableCell>
-                      <TableCell>{product.model || "-"}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {product.imei || "-"}
-                      </TableCell>
-                      <TableCell>{product.quantity ?? 0}</TableCell>
-                      <TableCell>{product.color || "-"}</TableCell>
-                      <TableCell>{formatCurrency(product.purchasePrice)}</TableCell>
-                      <TableCell>
-                        {product.sellingPrice ? formatCurrency(product.sellingPrice) : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenEditDialog(product)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteProduct(product._id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600" />
-                          </Button>
+                        <span className="shrink-0 rounded-xl bg-cyan-50 px-2.5 py-1 text-sm font-bold text-cyan-800">
+                          Qty {product.quantity ?? 0}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-xs text-slate-500">Purchase</p>
+                          <p className="font-semibold">{formatCurrency(product.purchasePrice)}</p>
                         </div>
-                      </TableCell>
+                        <div className="rounded-xl bg-teal-50 px-3 py-2">
+                          <p className="text-xs text-teal-600">Selling</p>
+                          <p className="font-semibold text-teal-800">
+                            {product.sellingPrice ? formatCurrency(product.sellingPrice) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      {(product.imei || product.color) && (
+                        <p className="mt-2 text-xs text-slate-500 font-mono">
+                          {product.imei && `IMEI: ${product.imei}`}
+                          {product.imei && product.color && ' · '}
+                          {product.color && `Color: ${product.color}`}
+                        </p>
+                      )}
+                      <div className="mt-3 flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-xl text-cyan-700 hover:bg-cyan-50"
+                          onClick={() => handleOpenEditDialog(product)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-xl text-red-600 hover:bg-red-50"
+                          onClick={() =>
+                            setDeleteTarget({ id: product._id, name: product.name })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredProducts.length === 0 && (
+                  <p className="text-center py-8 text-slate-500">No products found</p>
+                )}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto rounded-xl ring-1 ring-cyan-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-sky-50 to-cyan-50/80">
+                      <TableHead>Item Code</TableHead>
+                      <TableHead>Item Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead>IMEI</TableHead>
+                      <TableHead>Qty</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead>Purchase Price</TableHead>
+                      <TableHead>Selling Price</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                    );
-                  })}
-                  {filteredProducts.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-slate-500">
-                        No products found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProducts.map((product) => {
+                      const hasSellingPrice =
+                        product.sellingPrice != null && product.sellingPrice > 0;
+                      const profit = hasSellingPrice
+                        ? product.sellingPrice - product.purchasePrice
+                        : null;
+
+                      return (
+                        <TableRow key={product._id} className="hover:bg-cyan-50/20">
+                          <TableCell className="text-slate-600 text-sm">
+                            {product.category || '—'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-cyan-900">{product.name}</span>
+                              <ProfitIndicator profit={profit} />
+                            </div>
+                          </TableCell>
+                          <TableCell>{product.brand || '—'}</TableCell>
+                          <TableCell>{product.model || '—'}</TableCell>
+                          <TableCell className="font-mono text-sm text-indigo-600">
+                            {product.imei || '—'}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={
+                                (product.quantity ?? 0) > 0
+                                  ? 'font-semibold text-emerald-700'
+                                  : 'text-slate-500'
+                              }
+                            >
+                              {product.quantity ?? 0}
+                            </span>
+                          </TableCell>
+                          <TableCell>{product.color || '—'}</TableCell>
+                          <TableCell>{formatCurrency(product.purchasePrice)}</TableCell>
+                          <TableCell className="font-medium text-teal-700">
+                            {product.sellingPrice ? formatCurrency(product.sellingPrice) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-xl text-cyan-700 hover:bg-cyan-50"
+                                onClick={() => handleOpenEditDialog(product)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-xl text-red-600 hover:bg-red-50"
+                                onClick={() =>
+                                  setDeleteTarget({ id: product._id, name: product.name })
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredProducts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center py-8 text-slate-500">
+                          No products found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </ColorCard>
+
+        <ProductFormDialog
+          open={showAddDialog}
+          onOpenChange={setShowAddDialog}
+          editing={!!editingProduct}
+          form={formData}
+          onFormChange={setFormData}
+          itemNameOptions={itemNameOptions}
+          onSave={handleSaveProduct}
+          saving={saving}
+        />
+
+        <AlertDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => {
+            if (!open && !deleting) setDeleteTarget(null);
+          }}
+        >
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this product?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove <strong>{deleteTarget?.name}</strong> from your
+                catalog. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  confirmDelete();
+                }}
+                disabled={deleting}
+                className="rounded-xl bg-red-600 hover:bg-red-700"
+              >
+                {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );

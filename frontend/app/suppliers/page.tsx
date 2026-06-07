@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -13,24 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  Plus,
   Search,
   DollarSign,
   Loader2,
@@ -39,7 +22,10 @@ import {
   Link2,
   Link2Off,
   ArrowLeftRight,
-  Users,
+  Building2,
+  Wallet,
+  CreditCard,
+  TrendingUp,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -54,6 +40,146 @@ import {
 import { suppliersApi, customersApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import {
+  ColorCard,
+  NewSupplierButton,
+  SalesPageHero,
+  SUPPLIER_GRADIENT,
+  SummaryStat,
+} from '@/components/suppliers/suppliers-ui';
+import { SupplierFormDialog } from '@/components/suppliers/supplier-form-dialog';
+import { MakePaymentDialog } from '@/components/suppliers/make-payment-dialog';
+import { LinkCustomerDialog } from '@/components/suppliers/link-customer-dialog';
+import { SettleBalanceDialog } from '@/components/suppliers/settle-balance-dialog';
+
+function PayableCell({ payable }: { payable: number }) {
+  if (payable > 0) {
+    return <span className="font-semibold text-rose-600">{formatCurrency(payable)}</span>;
+  }
+  if (payable < 0) {
+    return (
+      <span className="font-semibold text-blue-600">
+        {formatCurrency(Math.abs(payable))} (They owe you)
+      </span>
+    );
+  }
+  return (
+    <Badge className="bg-gradient-to-r from-emerald-500 to-green-600 border-0">Settled</Badge>
+  );
+}
+
+function NetBalanceCell({
+  linked,
+  payable,
+  receivable,
+}: {
+  linked: any;
+  payable: number;
+  receivable: number;
+}) {
+  if (!linked) {
+    return <span className="text-slate-400 text-sm">—</span>;
+  }
+
+  const net = payable - receivable;
+
+  return (
+    <div className="text-sm">
+      {net > 0 ? (
+        <span className="font-medium text-rose-700">You owe {formatCurrency(net)}</span>
+      ) : net < 0 ? (
+        <span className="font-medium text-emerald-700">They owe {formatCurrency(Math.abs(net))}</span>
+      ) : (
+        <span className="text-slate-500">Settled</span>
+      )}
+      <div className="text-xs text-slate-400 mt-0.5">
+        Payable: {formatCurrency(payable)} · Receivable: {formatCurrency(receivable)}
+      </div>
+    </div>
+  );
+}
+
+function SupplierActions({
+  supplier,
+  linked,
+  payable,
+  receivable,
+  onEdit,
+  onLink,
+  onSettle,
+  onPayment,
+  onDelete,
+  compact = false,
+}: {
+  supplier: any;
+  linked: any;
+  payable: number;
+  receivable: number;
+  onEdit: () => void;
+  onLink: () => void;
+  onSettle: () => void;
+  onPayment: () => void;
+  onDelete: () => void;
+  compact?: boolean;
+}) {
+  const btnClass = compact ? 'h-8 w-8 rounded-xl' : 'rounded-xl';
+  const showSettle =
+    linked && ((payable > 0 && receivable > 0) || payable < 0);
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap justify-end">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`${btnClass} text-purple-700 hover:bg-purple-50`}
+        onClick={onEdit}
+        title="Edit supplier"
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`${btnClass} text-violet-700 hover:bg-violet-50`}
+        onClick={onLink}
+        title="Link to customer"
+      >
+        {linked ? <Link2Off className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+      </Button>
+      {showSettle && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`${btnClass} text-orange-600 hover:bg-orange-50`}
+          onClick={onSettle}
+          title={payable < 0 ? 'Transfer credit to receivable' : 'Settle balance'}
+        >
+          <ArrowLeftRight className="h-4 w-4" />
+        </Button>
+      )}
+      {supplier.outstanding > 0 && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`${btnClass} text-emerald-700 hover:bg-emerald-50`}
+          onClick={onPayment}
+          title="Make payment"
+        >
+          <DollarSign className="h-4 w-4" />
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`${btnClass} text-red-600 hover:bg-red-50`}
+        onClick={onDelete}
+        title="Delete supplier"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export default function SuppliersPage() {
   const { toast } = useToast();
@@ -118,6 +244,15 @@ export default function SuppliersPage() {
       supplier.phone?.includes(searchTerm)
   );
 
+  const resetForm = () => {
+    setFormData({ name: '', phone: '', email: '', address: '' });
+  };
+
+  const handleOpenAdd = () => {
+    resetForm();
+    setShowAddSupplier(true);
+  };
+
   const handleSaveSupplier = async () => {
     if (!formData.name || !formData.phone) {
       toast({
@@ -133,7 +268,7 @@ export default function SuppliersPage() {
       await suppliersApi.create(formData);
       toast({ title: 'Success', description: 'Supplier created successfully' });
       setShowAddSupplier(false);
-      setFormData({ name: '', phone: '', email: '', address: '' });
+      resetForm();
       fetchData();
     } catch (error: any) {
       toast({
@@ -173,7 +308,7 @@ export default function SuppliersPage() {
       toast({ title: 'Success', description: 'Supplier updated successfully' });
       setShowEditSupplier(false);
       setSelectedSupplier(null);
-      setFormData({ name: '', phone: '', email: '', address: '' });
+      resetForm();
       fetchData();
     } catch (error: any) {
       toast({
@@ -295,625 +430,305 @@ export default function SuppliersPage() {
     const linkedCustomerIds = suppliers
       .filter((s) => s.linkedCustomer && s._id !== selectedSupplier?._id)
       .map((s) =>
-        typeof s.linkedCustomer === 'object'
-          ? s.linkedCustomer._id
-          : s.linkedCustomer
+        typeof s.linkedCustomer === 'object' ? s.linkedCustomer._id : s.linkedCustomer
       );
     return customers.filter((c: any) => !linkedCustomerIds.includes(c._id));
   };
 
-  const formatDate = (date: string | null) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleDateString();
-  };
-
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Suppliers</h1>
-            <p className="text-slate-600">
-              Manage supplier information and linked accounts
-            </p>
-          </div>
-          <Dialog open={showAddSupplier} onOpenChange={setShowAddSupplier}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Supplier
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Supplier</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Name *</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="Supplier name"
-                  />
-                </div>
-                <div>
-                  <Label>Phone *</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    placeholder="Phone number"
-                  />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    placeholder="Email address"
-                  />
-                </div>
-                <div>
-                  <Label>Address</Label>
-                  <Input
-                    value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                    placeholder="Address"
-                  />
-                </div>
-                <Button
-                  onClick={handleSaveSupplier}
-                  className="w-full"
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save Supplier
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Suppliers"
+          description="Manage supplier information and linked accounts"
+          badge="Accounts"
+          gradient={SUPPLIER_GRADIENT}
+          actions={<NewSupplierButton onClick={handleOpenAdd} />}
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Total Suppliers"
+            value={loading ? '-' : String(summary?.totalSuppliers || suppliers.length)}
+            icon={Building2}
+            theme="bg-gradient-to-br from-fuchsia-50 to-purple-100 text-fuchsia-900 ring-1 ring-fuchsia-100"
+          />
+          <SummaryStat
+            label="Total Payables"
+            value={loading ? '-' : formatCurrency(summary?.totalPayables || 0)}
+            icon={Wallet}
+            theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
+          />
+          <SummaryStat
+            label="With Credit"
+            value={loading ? '-' : String(summary?.suppliersWithCredit || 0)}
+            icon={CreditCard}
+            theme="bg-gradient-to-br from-purple-50 to-violet-100 text-purple-900 ring-1 ring-purple-100"
+          />
+          <SummaryStat
+            label="Purchase Value"
+            value={loading ? '-' : formatCurrency(summary?.totalPurchaseValue || 0)}
+            icon={TrendingUp}
+            theme="bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-900 ring-1 ring-violet-100"
+          />
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Suppliers
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '-' : summary?.totalSuppliers || suppliers.length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Payables
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {loading
-                  ? '-'
-                  : formatCurrency(summary?.totalPayables || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Suppliers with Credit
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '-' : summary?.suppliersWithCredit || 0}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Purchase Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading
-                  ? '-'
-                  : formatCurrency(summary?.totalPurchaseValue || 0)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Supplier Table */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Supplier List</CardTitle>
-              <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search suppliers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <ColorCard
+          title="Supplier List"
+          headerClassName="bg-gradient-to-r from-fuchsia-50 via-purple-50 to-violet-50 border-purple-100/50 text-purple-900"
+        >
+          <div className="mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by name or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Total Purchases</TableHead>
-                    <TableHead>Payable</TableHead>
-                    <TableHead>Linked Customer</TableHead>
-                    <TableHead>Net Balance</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredSuppliers.map((supplier) => {
-                    const linked = supplier.linkedCustomer;
-                    const payable = supplier.outstanding || 0;
-                    const receivable = linked?.outstanding || 0;
-                    const net = payable - receivable;
+          </div>
 
-                    return (
-                      <TableRow key={supplier._id}>
-                        <TableCell className="font-medium">
-                          {supplier.name}
-                        </TableCell>
-                        <TableCell>{supplier.phone}</TableCell>
-                        <TableCell>
-                          {formatCurrency(supplier.totalPurchases || 0)}
-                        </TableCell>
-                        <TableCell>
-                          {payable > 0 ? (
-                            <span className="text-red-600 font-medium">
-                              {formatCurrency(payable)}
-                            </span>
-                          ) : payable < 0 ? (
-                            <span className="text-blue-600 font-medium">
-                              {formatCurrency(Math.abs(payable))} (They owe you)
-                            </span>
-                          ) : (
-                            <span className="text-green-600">Settled</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {linked ? (
-                            <Badge
-                              variant="outline"
-                              className="border-purple-300 text-purple-700"
-                            >
-                              <Link2 className="w-3 h-3 mr-1" />
-                              {linked.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-slate-400 text-sm">
-                              Not linked
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {linked ? (
-                            <div className="text-sm">
-                              {net > 0 ? (
-                                <span className="text-red-600 font-medium">
-                                  You owe {formatCurrency(net)}
-                                </span>
-                              ) : net < 0 ? (
-                                <span className="text-green-600 font-medium">
-                                  They owe {formatCurrency(Math.abs(net))}
-                                </span>
-                              ) : (
-                                <span className="text-slate-500">Settled</span>
-                              )}
-                              <div className="text-xs text-slate-400 mt-0.5">
-                                Payable: {formatCurrency(payable)} | Receivable:{' '}
-                                {formatCurrency(receivable)}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditSupplier(supplier)}
-                              title="Edit supplier"
-                            >
-                              <Edit className="w-4 h-4 text-blue-600" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 lg:hidden">
+                {filteredSuppliers.map((supplier) => {
+                  const linked = supplier.linkedCustomer;
+                  const payable = supplier.outstanding || 0;
+                  const receivable = linked?.outstanding || 0;
+
+                  return (
+                    <div
+                      key={supplier._id}
+                      className="rounded-2xl border border-purple-100/80 bg-gradient-to-br from-white to-purple-50/30 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-purple-900">{supplier.name}</p>
+                          <p className="text-sm text-slate-600">{supplier.phone}</p>
+                        </div>
+                        <div className="shrink-0">
+                          <PayableCell payable={payable} />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-xs text-slate-500">Total Purchases</p>
+                          <p className="font-semibold">
+                            {formatCurrency(supplier.totalPurchases || 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-violet-50 px-3 py-2">
+                          <p className="text-xs text-violet-600">Linked Customer</p>
+                          <p className="font-semibold text-violet-800 truncate">
+                            {linked?.name || 'Not linked'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {linked && (
+                        <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                          <NetBalanceCell
+                            linked={linked}
+                            payable={payable}
+                            receivable={receivable}
+                          />
+                        </div>
+                      )}
+
+                      <div className="mt-3">
+                        <SupplierActions
+                          supplier={supplier}
+                          linked={linked}
+                          payable={payable}
+                          receivable={receivable}
+                          compact
+                          onEdit={() => handleEditSupplier(supplier)}
+                          onLink={() => {
+                            setSelectedSupplier(supplier);
+                            setSelectedCustomerId(linked?._id || '__none__');
+                            setShowLinkDialog(true);
+                          }}
+                          onSettle={() => {
+                            setSelectedSupplier(supplier);
+                            setShowSettleDialog(true);
+                          }}
+                          onPayment={() => {
+                            setSelectedSupplier(supplier);
+                            setShowPayment(true);
+                          }}
+                          onDelete={() => {
+                            setSelectedSupplier(supplier);
+                            setShowDeleteDialog(true);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredSuppliers.length === 0 && (
+                  <p className="text-center py-8 text-slate-500">No suppliers found</p>
+                )}
+              </div>
+
+              <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-purple-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-fuchsia-50 to-purple-50/80">
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Total Purchases</TableHead>
+                      <TableHead>Payable</TableHead>
+                      <TableHead>Linked Customer</TableHead>
+                      <TableHead>Net Balance</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSuppliers.map((supplier) => {
+                      const linked = supplier.linkedCustomer;
+                      const payable = supplier.outstanding || 0;
+                      const receivable = linked?.outstanding || 0;
+
+                      return (
+                        <TableRow key={supplier._id} className="hover:bg-purple-50/20">
+                          <TableCell className="font-medium text-purple-900">
+                            {supplier.name}
+                          </TableCell>
+                          <TableCell>{supplier.phone}</TableCell>
+                          <TableCell>{formatCurrency(supplier.totalPurchases || 0)}</TableCell>
+                          <TableCell>
+                            <PayableCell payable={payable} />
+                          </TableCell>
+                          <TableCell>
+                            {linked ? (
+                              <Badge
+                                variant="outline"
+                                className="rounded-lg border-violet-200 text-violet-700 bg-violet-50"
+                              >
+                                <Link2 className="w-3 h-3 mr-1" />
+                                {linked.name}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400 text-sm">Not linked</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <NetBalanceCell
+                              linked={linked}
+                              payable={payable}
+                              receivable={receivable}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <SupplierActions
+                              supplier={supplier}
+                              linked={linked}
+                              payable={payable}
+                              receivable={receivable}
+                              onEdit={() => handleEditSupplier(supplier)}
+                              onLink={() => {
                                 setSelectedSupplier(supplier);
-                                setSelectedCustomerId(
-                                  linked?._id || '__none__'
-                                );
+                                setSelectedCustomerId(linked?._id || '__none__');
                                 setShowLinkDialog(true);
                               }}
-                              title="Link to customer"
-                            >
-                              {linked ? (
-                                <Link2Off className="w-4 h-4 text-purple-600" />
-                              ) : (
-                                <Link2 className="w-4 h-4 text-purple-600" />
-                              )}
-                            </Button>
-                            {linked &&
-                              ((payable > 0 && receivable > 0) || payable < 0) && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedSupplier(supplier);
-                                    setShowSettleDialog(true);
-                                  }}
-                                  title={payable < 0 ? "Transfer credit to receivable" : "Settle balance"}
-                                >
-                                  <ArrowLeftRight className="w-4 h-4 text-orange-600" />
-                                </Button>
-                              )}
-                            {supplier.outstanding > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedSupplier(supplier);
-                                  setShowPayment(true);
-                                }}
-                                title="Make payment"
-                              >
-                                <DollarSign className="w-4 h-4 text-green-600" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
+                              onSettle={() => {
+                                setSelectedSupplier(supplier);
+                                setShowSettleDialog(true);
+                              }}
+                              onPayment={() => {
+                                setSelectedSupplier(supplier);
+                                setShowPayment(true);
+                              }}
+                              onDelete={() => {
                                 setSelectedSupplier(supplier);
                                 setShowDeleteDialog(true);
                               }}
-                              title="Delete supplier"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredSuppliers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                          No suppliers found
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                  {filteredSuppliers.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="text-center py-8 text-slate-500"
-                      >
-                        No suppliers found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </ColorCard>
 
-        {/* Payment Dialog */}
-        <Dialog open={showPayment} onOpenChange={setShowPayment}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Make Payment</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Supplier</Label>
-                <Input value={selectedSupplier?.name || ''} disabled />
-              </div>
-              <div>
-                <Label>Outstanding Amount</Label>
-                <Input
-                  value={formatCurrency(selectedSupplier?.outstanding || 0)}
-                  disabled
-                />
-              </div>
-              <div>
-                <Label>Payment Amount</Label>
-                <Input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  min="0"
-                />
-              </div>
-              <Button
-                onClick={handleMakePayment}
-                className="w-full"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Make Payment
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <SupplierFormDialog
+          open={showAddSupplier}
+          onOpenChange={setShowAddSupplier}
+          editing={false}
+          form={formData}
+          onFormChange={setFormData}
+          onSave={handleSaveSupplier}
+          saving={saving}
+        />
 
-        {/* Edit Supplier Dialog */}
-        <Dialog open={showEditSupplier} onOpenChange={setShowEditSupplier}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Supplier</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Name *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="Supplier name"
-                />
-              </div>
-              <div>
-                <Label>Phone *</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  placeholder="Phone number"
-                />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="Email address"
-                />
-              </div>
-              <div>
-                <Label>Address</Label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  placeholder="Address"
-                />
-              </div>
-              <Button
-                onClick={handleUpdateSupplier}
-                className="w-full"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Update Supplier
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <SupplierFormDialog
+          open={showEditSupplier}
+          onOpenChange={setShowEditSupplier}
+          editing={true}
+          form={formData}
+          onFormChange={setFormData}
+          onSave={handleUpdateSupplier}
+          saving={saving}
+        />
 
-        {/* Link Customer Dialog */}
-        <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Link Supplier to Customer
-                </div>
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
-                If this supplier is also your customer (same person/company),
-                link them to auto-track net balance. Their payable and
-                receivable will be shown as a single net amount and can be
-                settled together.
-              </div>
-              <div>
-                <Label>Supplier</Label>
-                <Input value={selectedSupplier?.name || ''} disabled />
-              </div>
-              <div>
-                <Label>Link to Customer</Label>
-                <Select
-                  value={selectedCustomerId}
-                  onValueChange={setSelectedCustomerId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a customer..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">
-                      -- No Link (Remove) --
-                    </SelectItem>
-                    {getAvailableCustomers().map((c: any) => (
-                      <SelectItem key={c._id} value={c._id}>
-                        {c.name} ({c.phone})
-                        {c.outstanding > 0
-                          ? ` - Receivable: ${formatCurrency(c.outstanding)}`
-                          : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={handleLinkCustomer}
-                className="w-full"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {selectedCustomerId === '__none__'
-                  ? 'Remove Link'
-                  : 'Link Customer'}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <MakePaymentDialog
+          open={showPayment}
+          onOpenChange={setShowPayment}
+          supplierName={selectedSupplier?.name || ''}
+          outstanding={selectedSupplier?.outstanding || 0}
+          amount={paymentAmount}
+          onAmountChange={setPaymentAmount}
+          onSave={handleMakePayment}
+          saving={saving}
+        />
 
-        {/* Settle Balance Dialog */}
-        <AlertDialog open={showSettleDialog} onOpenChange={setShowSettleDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                <div className="flex items-center gap-2">
-                  <ArrowLeftRight className="w-5 h-5 text-orange-600" />
-                  Settle Linked Balance
-                </div>
-              </AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="space-y-3">
-                  {selectedSupplier && (() => {
-                    const pay = selectedSupplier.outstanding || 0;
-                    const recv = selectedSupplier.linkedCustomer?.outstanding || 0;
-                    const isNegativePayable = pay < 0;
+        <LinkCustomerDialog
+          open={showLinkDialog}
+          onOpenChange={setShowLinkDialog}
+          supplierName={selectedSupplier?.name || ''}
+          customerId={selectedCustomerId}
+          onCustomerChange={setSelectedCustomerId}
+          customers={getAvailableCustomers()}
+          onSave={handleLinkCustomer}
+          saving={saving}
+        />
 
-                    if (isNegativePayable) {
-                      const transferAmt = Math.abs(pay);
-                      return (
-                        <>
-                          <p>
-                            Supplier has a <strong>credit balance</strong> (they owe you). 
-                            This will transfer that amount as receivable to the linked customer account.
-                          </p>
-                          <div className="bg-slate-50 rounded-lg p-3 space-y-1 text-sm">
-                            <div className="flex justify-between">
-                              <span>Supplier credit (they owe you):</span>
-                              <span className="font-medium text-blue-600">
-                                {formatCurrency(transferAmt)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Current customer receivable:</span>
-                              <span className="font-medium text-green-600">
-                                {formatCurrency(recv)}
-                              </span>
-                            </div>
-                            <hr />
-                            <div className="flex justify-between font-medium">
-                              <span>Transfer to receivable:</span>
-                              <span className="text-orange-600">
-                                {formatCurrency(transferAmt)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-xs text-slate-500">
-                              <span>After settlement:</span>
-                              <span>
-                                Supplier payable: {formatCurrency(0)} | Customer receivable: {formatCurrency(recv + transferAmt)}
-                              </span>
-                            </div>
-                          </div>
-                        </>
-                      );
-                    }
+        <SettleBalanceDialog
+          open={showSettleDialog}
+          onOpenChange={setShowSettleDialog}
+          supplier={selectedSupplier}
+          onSettle={handleSettle}
+          saving={saving}
+        />
 
-                    const settleAmt = Math.min(pay, recv);
-                    return (
-                      <>
-                        <p>
-                          This will net off the payable (what you owe the supplier)
-                          against the receivable (what the customer owes you).
-                        </p>
-                        <div className="bg-slate-50 rounded-lg p-3 space-y-1 text-sm">
-                          <div className="flex justify-between">
-                            <span>Payable (you owe supplier):</span>
-                            <span className="font-medium text-red-600">
-                              {formatCurrency(pay)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Receivable (customer owes you):</span>
-                            <span className="font-medium text-green-600">
-                              {formatCurrency(recv)}
-                            </span>
-                          </div>
-                          <hr />
-                          <div className="flex justify-between font-medium">
-                            <span>Settlement amount:</span>
-                            <span className="text-orange-600">
-                              {formatCurrency(settleAmt)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs text-slate-500">
-                            <span>After settlement:</span>
-                            <span>
-                              Payable: {formatCurrency(Math.max(0, pay - recv))} | Receivable: {formatCurrency(Math.max(0, recv - pay))}
-                            </span>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleSettle}
-                disabled={saving}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Settle Now
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Delete Confirmation Dialog */}
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete{' '}
-                <strong>{selectedSupplier?.name}</strong>? This action cannot be
-                undone.
+                Are you sure you want to delete <strong>{selectedSupplier?.name}</strong>? This
+                action cannot be undone.
                 {selectedSupplier?.outstanding > 0 && (
-                  <span className="block mt-2 text-red-600">
+                  <span className="block mt-2 text-rose-600">
                     Warning: You have an outstanding balance of{' '}
-                    {formatCurrency(selectedSupplier?.outstanding)} to this
-                    supplier.
+                    {formatCurrency(selectedSupplier?.outstanding)} to this supplier.
                   </span>
                 )}
               </AlertDialogDescription>
@@ -923,7 +738,7 @@ export default function SuppliersPage() {
               <AlertDialogAction
                 onClick={handleDeleteSupplier}
                 disabled={saving}
-                className="bg-red-600 hover:bg-red-700"
+                className="rounded-xl bg-red-600 hover:bg-red-700"
               >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Delete

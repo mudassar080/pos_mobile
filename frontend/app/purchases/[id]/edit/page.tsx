@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -28,7 +27,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Save, Loader2, Info } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, Info, Package, ShoppingBag, DollarSign } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+  ColorCard,
+  PURCHASE_GRADIENT,
+  SalesPageHero,
+  SummaryStat,
+  purchaseBtnPrimary,
+  purchaseBtnSecondary,
+  AddSupplierDialog,
+} from '@/components/purchases/purchases-ui';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency } from '@/utils/constant';
 import { productsApi, suppliersApi, purchasesApi, purchaseReturnsApi } from '@/lib/api';
@@ -389,6 +398,7 @@ export default function EditPurchasePage() {
   };
 
   const total = items.reduce((sum, item) => sum + item.total, 0);
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleSave = async () => {
     if (!supplier) {
@@ -601,11 +611,16 @@ export default function EditPurchasePage() {
     });
   };
 
+
   if (loading) {
     return (
       <MainLayout>
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+        <div className="space-y-6 animate-pulse">
+          <div className="h-36 rounded-3xl bg-gradient-to-r from-blue-200 via-indigo-200 to-violet-200" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 h-96 rounded-2xl bg-slate-100" />
+            <div className="h-80 rounded-2xl bg-slate-100" />
+          </div>
         </div>
       </MainLayout>
     );
@@ -613,24 +628,54 @@ export default function EditPurchasePage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Edit Purchase</h1>
-            <p className="text-slate-600">
-              {purchaseNumber ? `${purchaseNumber} — ` : ''}Update supplier, lines, or notes
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => router.push('/purchases')}>
-            Cancel
-          </Button>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Edit Purchase"
+          description={
+            purchaseNumber
+              ? `${purchaseNumber} — Update supplier, lines, or notes`
+              : 'Update supplier, lines, or notes'
+          }
+          badge={purchaseNumber || 'Edit'}
+          gradient={PURCHASE_GRADIENT}
+          backHref="/purchases"
+          actions={
+            <Button
+              variant="secondary"
+              onClick={() => router.push('/purchases')}
+              className="rounded-xl bg-white/15 text-white hover:bg-white/25 border-0"
+            >
+              Cancel
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Items"
+            value={String(items.length)}
+            icon={Package}
+            theme="bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-900 ring-1 ring-blue-100"
+          />
+          <SummaryStat
+            label="Quantity"
+            value={String(totalQuantity)}
+            icon={ShoppingBag}
+            theme="bg-gradient-to-br from-violet-50 to-purple-100 text-violet-900 ring-1 ring-violet-100"
+          />
+          <SummaryStat
+            label="Total"
+            value={formatCurrency(total)}
+            icon={DollarSign}
+            theme="bg-gradient-to-br from-indigo-50 to-blue-100 text-indigo-900 ring-1 ring-indigo-100"
+          />
         </div>
 
         {linesLocked ? (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>Line items and supplier are locked</AlertTitle>
-            <AlertDescription>
+          <Alert className="rounded-2xl border-indigo-200 bg-indigo-50/80">
+            <Info className="h-4 w-4 text-indigo-600" />
+            <AlertTitle className="text-indigo-900">Line items and supplier are locked</AlertTitle>
+            <AlertDescription className="text-indigo-700">
               This purchase has recorded payments or purchase returns. You can still change notes
               below. To edit lines, remove linked returns first and ensure nothing has been paid
               against this purchase.
@@ -638,28 +683,14 @@ export default function EditPurchasePage() {
           </Alert>
         ) : null}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Supplier Details</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={linesLocked}
-                    onClick={() => {
-                      setSupplierForm({ name: '', phone: '', email: '', address: '' });
-                      setShowAddSupplier(true);
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Supplier
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <ColorCard
+              title="Supplier Details"
+              headerClassName="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100/50 text-blue-900"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="flex-1">
                   <Label>Select Supplier *</Label>
                   <Select
                     value={supplier?._id || ''}
@@ -669,7 +700,7 @@ export default function EditPurchasePage() {
                       setSupplier(sup);
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-xl mt-1.5">
                       <SelectValue placeholder="Choose supplier" />
                     </SelectTrigger>
                     <SelectContent>
@@ -681,29 +712,41 @@ export default function EditPurchasePage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </CardContent>
-            </Card>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={linesLocked}
+                  className={purchaseBtnSecondary}
+                  onClick={() => {
+                    setSupplierForm({ name: '', phone: '', email: '', address: '' });
+                    setShowAddSupplier(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Supplier
+                </Button>
+              </div>
+            </ColorCard>
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Add Products</CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={linesLocked}
-                    onClick={() => {
-                      setProductForm({ name: '', brand: '', model: '' });
-                      setShowAddProduct(true);
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Product
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+            <ColorCard
+              title="Add Products"
+              headerClassName="bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-100/50 text-indigo-900"
+            >
+              {!linesLocked && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(purchaseBtnSecondary, 'mb-4')}
+                  onClick={() => {
+                    setProductForm({ name: '', brand: '', model: '' });
+                    setShowAddProduct(true);
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Product
+                </Button>
+              )}
+              <div className="space-y-4">
                   {!linesLocked ? (
                     <>
                   <div>
@@ -748,8 +791,8 @@ export default function EditPurchasePage() {
 
                   {selectedProduct && (
                     <>
-                      <div className="grid grid-cols-12 gap-4 p-4 bg-slate-50 rounded-lg border">
-                        <div className="col-span-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 p-4 bg-gradient-to-br from-indigo-50/80 to-blue-50/50 rounded-2xl ring-1 ring-indigo-100">
+                        <div>
                           <Label>Purchase Price (PKR) *</Label>
                           <Input
                             type="number"
@@ -757,6 +800,7 @@ export default function EditPurchasePage() {
                             value={purchasePrice}
                             onChange={(e) => setPurchasePrice(e.target.value)}
                             placeholder="0.00"
+                            className="rounded-xl mt-1.5"
                           />
                           {(() => {
                             const prod = products.find((p) => p._id === selectedProduct);
@@ -771,7 +815,7 @@ export default function EditPurchasePage() {
                             return null;
                           })()}
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <Label>Sale Price (PKR)</Label>
                           <Input
                             type="number"
@@ -779,45 +823,50 @@ export default function EditPurchasePage() {
                             value={salePrice}
                             onChange={(e) => setSalePrice(e.target.value)}
                             placeholder="0.00"
+                            className="rounded-xl mt-1.5"
                           />
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <Label>Quantity</Label>
                           <Input
                             type="number"
                             min="1"
                             value={quantity}
                             onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                            className="rounded-xl mt-1.5"
                           />
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <Label>IMEI Number</Label>
                           <Input
                             value={imei}
                             onChange={(e) => setImei(e.target.value)}
                             placeholder="Enter IMEI (optional)"
                             maxLength={15}
+                            className="rounded-xl mt-1.5"
                           />
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <Label>Brand</Label>
                           <Input
                             value={brand}
                             onChange={(e) => setBrand(e.target.value)}
                             placeholder="Brand"
+                            className="rounded-xl mt-1.5"
                           />
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <Label>Model</Label>
                           <Input
                             value={model}
                             onChange={(e) => setModel(e.target.value)}
                             placeholder="Model"
+                            className="rounded-xl mt-1.5"
                           />
                         </div>
                       </div>
                       <div className="mt-2">
-                        <Button onClick={addItem} className="w-full">
+                        <Button onClick={addItem} className={cn('w-full', purchaseBtnPrimary)}>
                           <Plus className="w-4 h-4 mr-2" />
                           Add Item
                         </Button>
@@ -828,10 +877,10 @@ export default function EditPurchasePage() {
                   ) : null}
 
                   {items.length > 0 && (
-                    <div className="border rounded-lg">
+                    <div className="overflow-x-auto rounded-xl ring-1 ring-indigo-100/70">
                       <Table>
                         <TableHeader>
-                          <TableRow>
+                          <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50/80">
                             <TableHead>Product</TableHead>
                             <TableHead>IMEI / Qty</TableHead>
                             <TableHead>Price</TableHead>
@@ -841,7 +890,7 @@ export default function EditPurchasePage() {
                         </TableHeader>
                         <TableBody>
                           {items.map((item) => (
-                            <TableRow key={item.id}>
+                            <TableRow key={item.id} className="hover:bg-indigo-50/20">
                               <TableCell>
                                 {item.product?.name ?? '—'}
                                 {item.product?._isTemp && (
@@ -850,19 +899,20 @@ export default function EditPurchasePage() {
                               </TableCell>
                               <TableCell className="font-mono text-sm">
                                 {item.imei ? (
-                                  <span className="text-blue-600">{item.imei}</span>
+                                  <span className="text-indigo-600">{item.imei}</span>
                                 ) : (
                                   `Qty: ${item.quantity}`
                                 )}
                               </TableCell>
                               <TableCell>{formatCurrency(item.price)}</TableCell>
-                              <TableCell className="font-medium">{formatCurrency(item.total)}</TableCell>
+                              <TableCell className="font-bold text-indigo-700">{formatCurrency(item.total)}</TableCell>
                               <TableCell>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   disabled={linesLocked}
                                   onClick={() => removeItem(item.id)}
+                                  className="text-red-600 hover:bg-red-50 rounded-lg"
                                 >
                                   <Trash2 className="w-4 h-4 text-red-600" />
                                 </Button>
@@ -873,88 +923,90 @@ export default function EditPurchasePage() {
                       </Table>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </ColorCard>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Additional Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any notes..."
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <ColorCard
+              title="Additional Details"
+              headerClassName="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-100/50 text-amber-900"
+            >
+              <div>
+                <Label>Notes</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any notes..."
+                  rows={3}
+                  className="rounded-xl mt-1.5 resize-none"
+                />
+              </div>
+            </ColorCard>
           </div>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Purchase Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-20 lg:self-start">
+            <ColorCard
+              title="Purchase Summary"
+              headerClassName="bg-gradient-to-r from-indigo-50 to-violet-50 border-indigo-100/50 text-indigo-900"
+            >
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm rounded-xl bg-slate-50 px-3 py-2">
                     <span className="text-slate-600">Items</span>
-                    <span>{items.length}</span>
+                    <span className="font-semibold">{items.length}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm rounded-xl bg-slate-50 px-3 py-2">
                     <span className="text-slate-600">Total Quantity</span>
-                    <span>{items.reduce((sum, item) => sum + item.quantity, 0)}</span>
+                    <span className="font-semibold">{totalQuantity}</span>
                   </div>
                 </div>
-                <div className="border-t pt-4">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span>{formatCurrency(total)}</span>
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 p-4 text-white shadow-lg shadow-indigo-200/50">
+                  <div className="flex justify-between items-center">
+                    <span className="text-indigo-100">Grand Total</span>
+                    <span className="text-2xl font-bold">{formatCurrency(total)}</span>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </ColorCard>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-md bg-slate-50 border border-slate-200 p-3 text-sm space-y-1">
+            <ColorCard
+              title="Payment"
+              headerClassName="bg-gradient-to-r from-violet-50 to-fuchsia-50 border-violet-100/50 text-violet-900"
+            >
+              <div className="space-y-4">
+                <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-sm space-y-1">
                   <p>
-                    <span className="text-slate-600">Recorded paid:</span>{' '}
-                    <span className="font-medium">
+                    <span className="text-indigo-600">Recorded paid:</span>{' '}
+                    <span className="font-semibold text-indigo-900">
                       {formatCurrency(parseFloat(paidAmount || '0') || 0)}
                     </span>
                   </p>
                   <p>
-                    <span className="text-slate-600">Outstanding:</span>{' '}
-                    <span className="font-medium">
+                    <span className="text-indigo-600">Outstanding:</span>{' '}
+                    <span className="font-semibold text-rose-700">
                       {formatCurrency(Math.max(0, total - (parseFloat(paidAmount || '0') || 0)))}
                     </span>
                   </p>
-                  <p className="text-slate-500 text-xs pt-1">
+                  <p className="text-indigo-500/80 text-xs pt-1">
                     Payments are recorded from the Purchases list (view purchase / pay supplier).
                   </p>
                 </div>
-                <Button onClick={handleSave} className="w-full" size="lg" disabled={saving}>
+                <Button
+                  onClick={handleSave}
+                  className={cn('w-full', purchaseBtnPrimary)}
+                  size="lg"
+                  disabled={saving}
+                >
                   {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   <Save className="w-4 h-4 mr-2" />
                   {linesLocked ? 'Save notes' : 'Save changes'}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </ColorCard>
           </div>
         </div>
 
-        {/* Add Product Modal */}
         <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md rounded-2xl">
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
             </DialogHeader>
@@ -1018,77 +1070,14 @@ export default function EditPurchasePage() {
           </DialogContent>
         </Dialog>
 
-        {/* Add Supplier Modal */}
-        <Dialog open={showAddSupplier} onOpenChange={setShowAddSupplier}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add New Supplier</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Supplier Name *</Label>
-                <Input
-                  value={supplierForm.name}
-                  onChange={(e) =>
-                    setSupplierForm({ ...supplierForm, name: e.target.value })
-                  }
-                  placeholder="Enter supplier name"
-                />
-              </div>
-
-              <div>
-                <Label>Phone Number *</Label>
-                <Input
-                  value={supplierForm.phone}
-                  onChange={(e) =>
-                    setSupplierForm({ ...supplierForm, phone: e.target.value })
-                  }
-                  placeholder="Enter phone number"
-                />
-              </div>
-
-              <div>
-                <Label>Email</Label>
-                <Input
-                  value={supplierForm.email}
-                  onChange={(e) =>
-                    setSupplierForm({ ...supplierForm, email: e.target.value })
-                  }
-                  placeholder="Enter email (optional)"
-                />
-              </div>
-
-              <div>
-                <Label>Address</Label>
-                <Input
-                  value={supplierForm.address}
-                  onChange={(e) =>
-                    setSupplierForm({ ...supplierForm, address: e.target.value })
-                  }
-                  placeholder="Enter address (optional)"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddSupplier(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveSupplier}
-                  className="flex-1"
-                  disabled={savingSupplier}
-                >
-                  {savingSupplier && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save Supplier
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <AddSupplierDialog
+          open={showAddSupplier}
+          onOpenChange={setShowAddSupplier}
+          form={supplierForm}
+          onFormChange={setSupplierForm}
+          onSave={handleSaveSupplier}
+          saving={savingSupplier}
+        />
       </div>
     </MainLayout>
   );

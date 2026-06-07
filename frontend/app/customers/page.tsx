@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -13,24 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
-  Plus,
   Search,
   DollarSign,
   Loader2,
@@ -39,6 +22,9 @@ import {
   Link2,
   Link2Off,
   Users,
+  Wallet,
+  CreditCard,
+  TrendingUp,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -53,6 +39,110 @@ import {
 import { customersApi, suppliersApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import {
+  ColorCard,
+  CUSTOMER_GRADIENT,
+  NewCustomerButton,
+  SalesPageHero,
+  SummaryStat,
+} from '@/components/customers/customers-ui';
+import { CustomerFormDialog } from '@/components/customers/customer-form-dialog';
+import { ReceivePaymentDialog } from '@/components/customers/receive-payment-dialog';
+import { LinkSupplierDialog } from '@/components/customers/link-supplier-dialog';
+
+function NetBalanceCell({
+  linked,
+  receivable,
+  payable,
+}: {
+  linked: any;
+  receivable: number;
+  payable: number;
+}) {
+  if (!linked) {
+    return <span className="text-slate-400 text-sm">—</span>;
+  }
+
+  const net = receivable - payable;
+
+  return (
+    <div className="text-sm">
+      {net > 0 ? (
+        <span className="font-medium text-emerald-700">They owe {formatCurrency(net)}</span>
+      ) : net < 0 ? (
+        <span className="font-medium text-rose-700">You owe {formatCurrency(Math.abs(net))}</span>
+      ) : (
+        <span className="text-slate-500">Settled</span>
+      )}
+      <div className="text-xs text-slate-400 mt-0.5">
+        Receivable: {formatCurrency(receivable)} · Payable: {formatCurrency(payable)}
+      </div>
+    </div>
+  );
+}
+
+function CustomerActions({
+  customer,
+  linked,
+  onEdit,
+  onLink,
+  onPayment,
+  onDelete,
+  compact = false,
+}: {
+  customer: any;
+  linked: any;
+  onEdit: () => void;
+  onLink: () => void;
+  onPayment: () => void;
+  onDelete: () => void;
+  compact?: boolean;
+}) {
+  const btnClass = compact ? 'h-8 w-8 rounded-xl' : 'rounded-xl';
+
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`${btnClass} text-rose-700 hover:bg-rose-50`}
+        onClick={onEdit}
+        title="Edit customer"
+      >
+        <Edit className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`${btnClass} text-violet-700 hover:bg-violet-50`}
+        onClick={onLink}
+        title="Link to supplier"
+      >
+        {linked ? <Link2Off className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}
+      </Button>
+      {customer.outstanding > 0 && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`${btnClass} text-emerald-700 hover:bg-emerald-50`}
+          onClick={onPayment}
+          title="Receive payment"
+        >
+          <DollarSign className="h-4 w-4" />
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className={`${btnClass} text-red-600 hover:bg-red-50`}
+        onClick={onDelete}
+        title="Delete customer"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export default function CustomersPage() {
   const { toast } = useToast();
@@ -116,6 +206,15 @@ export default function CustomersPage() {
       customer.phone?.includes(searchTerm)
   );
 
+  const resetForm = () => {
+    setFormData({ name: '', phone: '', email: '', address: '' });
+  };
+
+  const handleOpenAdd = () => {
+    resetForm();
+    setShowAddCustomer(true);
+  };
+
   const handleSaveCustomer = async () => {
     if (!formData.name || !formData.phone) {
       toast({
@@ -131,7 +230,7 @@ export default function CustomersPage() {
       await customersApi.create(formData);
       toast({ title: 'Success', description: 'Customer created successfully' });
       setShowAddCustomer(false);
-      setFormData({ name: '', phone: '', email: '', address: '' });
+      resetForm();
       fetchData();
     } catch (error: any) {
       toast({
@@ -171,7 +270,7 @@ export default function CustomersPage() {
       toast({ title: 'Success', description: 'Customer updated successfully' });
       setShowEditCustomer(false);
       setSelectedCustomer(null);
-      setFormData({ name: '', phone: '', email: '', address: '' });
+      resetForm();
       fetchData();
     } catch (error: any) {
       toast({
@@ -217,10 +316,7 @@ export default function CustomersPage() {
 
     setSaving(true);
     try {
-      await customersApi.receivePayment(
-        selectedCustomer._id,
-        parseFloat(paymentAmount)
-      );
+      await customersApi.receivePayment(selectedCustomer._id, parseFloat(paymentAmount));
       toast({ title: 'Success', description: 'Payment received successfully' });
       setShowPayment(false);
       setPaymentAmount('');
@@ -272,492 +368,291 @@ export default function CustomersPage() {
     const linkedSupplierIds = customers
       .filter((c) => c.linkedSupplier && c._id !== selectedCustomer?._id)
       .map((c) =>
-        typeof c.linkedSupplier === 'object'
-          ? c.linkedSupplier._id
-          : c.linkedSupplier
+        typeof c.linkedSupplier === 'object' ? c.linkedSupplier._id : c.linkedSupplier
       );
     return suppliers.filter((s: any) => !linkedSupplierIds.includes(s._id));
   };
 
-  const formatDate = (date: string | null) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleDateString();
-  };
-
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Customers</h1>
-            <p className="text-slate-600">
-              Manage customer information and linked accounts
-            </p>
-          </div>
-          <Dialog open={showAddCustomer} onOpenChange={setShowAddCustomer}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Customer
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Customer</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Name *</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="Customer name"
-                  />
-                </div>
-                <div>
-                  <Label>Phone *</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) =>
-                      setFormData({ ...formData, phone: e.target.value })
-                    }
-                    placeholder="Phone number"
-                  />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    placeholder="Email address"
-                  />
-                </div>
-                <div>
-                  <Label>Address</Label>
-                  <Input
-                    value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                    placeholder="Address"
-                  />
-                </div>
-                <Button
-                  onClick={handleSaveCustomer}
-                  className="w-full"
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save Customer
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Customers"
+          description="Manage customer information and linked accounts"
+          badge="Accounts"
+          gradient={CUSTOMER_GRADIENT}
+          actions={<NewCustomerButton onClick={handleOpenAdd} />}
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Total Customers"
+            value={loading ? '-' : String(summary?.totalCustomers || customers.length)}
+            icon={Users}
+            theme="bg-gradient-to-br from-pink-50 to-rose-100 text-pink-900 ring-1 ring-pink-100"
+          />
+          <SummaryStat
+            label="Receivables"
+            value={loading ? '-' : formatCurrency(summary?.totalReceivables || 0)}
+            icon={Wallet}
+            theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
+          />
+          <SummaryStat
+            label="With Credit"
+            value={loading ? '-' : String(summary?.customersWithCredit || 0)}
+            icon={CreditCard}
+            theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
+          />
+          <SummaryStat
+            label="Total Sales"
+            value={loading ? '-' : formatCurrency(summary?.totalSalesValue || 0)}
+            icon={TrendingUp}
+            theme="bg-gradient-to-br from-fuchsia-50 to-pink-100 text-fuchsia-900 ring-1 ring-fuchsia-100"
+          />
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Customers
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '-' : summary?.totalCustomers || customers.length}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Receivables
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {loading
-                  ? '-'
-                  : formatCurrency(summary?.totalReceivables || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Customers with Credit
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '-' : summary?.customersWithCredit || 0}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Sales Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading
-                  ? '-'
-                  : formatCurrency(summary?.totalSalesValue || 0)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Customer Table */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Customer List</CardTitle>
-              <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search customers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <ColorCard
+          title="Customer List"
+          headerClassName="bg-gradient-to-r from-pink-50 via-rose-50 to-red-50 border-rose-100/50 text-rose-900"
+        >
+          <div className="mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by name or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Total Purchases</TableHead>
-                    <TableHead>Receivable</TableHead>
-                    <TableHead>Linked Supplier</TableHead>
-                    <TableHead>Net Balance</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCustomers.map((customer) => {
-                    const linked = customer.linkedSupplier;
-                    const receivable = customer.outstanding || 0;
-                    const payable = linked?.outstanding || 0;
-                    const net = receivable - payable;
+          </div>
 
-                    return (
-                      <TableRow key={customer._id}>
-                        <TableCell className="font-medium">
-                          {customer.name}
-                        </TableCell>
-                        <TableCell>{customer.phone}</TableCell>
-                        <TableCell>
-                          {formatCurrency(customer.totalPurchases || 0)}
-                        </TableCell>
-                        <TableCell>
-                          {receivable > 0 ? (
-                            <span className="text-orange-600 font-medium">
-                              {formatCurrency(receivable)}
-                            </span>
-                          ) : (
-                            <span className="text-green-600">Settled</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {linked ? (
-                            <Badge
-                              variant="outline"
-                              className="border-purple-300 text-purple-700"
-                            >
-                              <Link2 className="w-3 h-3 mr-1" />
-                              {linked.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-slate-400 text-sm">
-                              Not linked
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {linked ? (
-                            <div className="text-sm">
-                              {net > 0 ? (
-                                <span className="text-green-600 font-medium">
-                                  They owe {formatCurrency(net)}
-                                </span>
-                              ) : net < 0 ? (
-                                <span className="text-red-600 font-medium">
-                                  You owe {formatCurrency(Math.abs(net))}
-                                </span>
-                              ) : (
-                                <span className="text-slate-500">Settled</span>
-                              )}
-                              <div className="text-xs text-slate-400 mt-0.5">
-                                Receivable: {formatCurrency(receivable)} |
-                                Payable: {formatCurrency(payable)}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEditCustomer(customer)}
-                              title="Edit customer"
-                            >
-                              <Edit className="w-4 h-4 text-blue-600" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 lg:hidden">
+                {filteredCustomers.map((customer) => {
+                  const linked = customer.linkedSupplier;
+                  const receivable = customer.outstanding || 0;
+                  const payable = linked?.outstanding || 0;
+
+                  return (
+                    <div
+                      key={customer._id}
+                      className="rounded-2xl border border-rose-100/80 bg-gradient-to-br from-white to-rose-50/30 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-rose-900">{customer.name}</p>
+                          <p className="text-sm text-slate-600">{customer.phone}</p>
+                        </div>
+                        {receivable > 0 ? (
+                          <span className="shrink-0 rounded-xl bg-orange-50 px-2.5 py-1 text-sm font-bold text-orange-700 ring-1 ring-orange-100">
+                            {formatCurrency(receivable)}
+                          </span>
+                        ) : (
+                          <Badge className="bg-gradient-to-r from-emerald-500 to-green-600 border-0 shrink-0">
+                            Settled
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-xs text-slate-500">Total Purchases</p>
+                          <p className="font-semibold">
+                            {formatCurrency(customer.totalPurchases || 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-violet-50 px-3 py-2">
+                          <p className="text-xs text-violet-600">Linked Supplier</p>
+                          <p className="font-semibold text-violet-800 truncate">
+                            {linked?.name || 'Not linked'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {linked && (
+                        <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                          <NetBalanceCell linked={linked} receivable={receivable} payable={payable} />
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex items-center justify-end">
+                        <CustomerActions
+                          customer={customer}
+                          linked={linked}
+                          compact
+                          onEdit={() => handleEditCustomer(customer)}
+                          onLink={() => {
+                            setSelectedCustomer(customer);
+                            setSelectedSupplierId(linked?._id || '__none__');
+                            setShowLinkDialog(true);
+                          }}
+                          onPayment={() => {
+                            setSelectedCustomer(customer);
+                            setShowPayment(true);
+                          }}
+                          onDelete={() => {
+                            setSelectedCustomer(customer);
+                            setShowDeleteDialog(true);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredCustomers.length === 0 && (
+                  <p className="text-center py-8 text-slate-500">No customers found</p>
+                )}
+              </div>
+
+              <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-rose-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-pink-50 to-rose-50/80">
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Total Purchases</TableHead>
+                      <TableHead>Receivable</TableHead>
+                      <TableHead>Linked Supplier</TableHead>
+                      <TableHead>Net Balance</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCustomers.map((customer) => {
+                      const linked = customer.linkedSupplier;
+                      const receivable = customer.outstanding || 0;
+                      const payable = linked?.outstanding || 0;
+
+                      return (
+                        <TableRow key={customer._id} className="hover:bg-rose-50/20">
+                          <TableCell className="font-medium text-rose-900">
+                            {customer.name}
+                          </TableCell>
+                          <TableCell>{customer.phone}</TableCell>
+                          <TableCell>{formatCurrency(customer.totalPurchases || 0)}</TableCell>
+                          <TableCell>
+                            {receivable > 0 ? (
+                              <span className="font-semibold text-orange-600">
+                                {formatCurrency(receivable)}
+                              </span>
+                            ) : (
+                              <Badge className="bg-gradient-to-r from-emerald-500 to-green-600 border-0">
+                                Settled
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {linked ? (
+                              <Badge
+                                variant="outline"
+                                className="rounded-lg border-violet-200 text-violet-700 bg-violet-50"
+                              >
+                                <Link2 className="w-3 h-3 mr-1" />
+                                {linked.name}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400 text-sm">Not linked</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <NetBalanceCell
+                              linked={linked}
+                              receivable={receivable}
+                              payable={payable}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <CustomerActions
+                              customer={customer}
+                              linked={linked}
+                              onEdit={() => handleEditCustomer(customer)}
+                              onLink={() => {
                                 setSelectedCustomer(customer);
-                                setSelectedSupplierId(
-                                  linked?._id || '__none__'
-                                );
+                                setSelectedSupplierId(linked?._id || '__none__');
                                 setShowLinkDialog(true);
                               }}
-                              title="Link to supplier"
-                            >
-                              {linked ? (
-                                <Link2Off className="w-4 h-4 text-purple-600" />
-                              ) : (
-                                <Link2 className="w-4 h-4 text-purple-600" />
-                              )}
-                            </Button>
-                            {customer.outstanding > 0 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedCustomer(customer);
-                                  setShowPayment(true);
-                                }}
-                                title="Receive payment"
-                              >
-                                <DollarSign className="w-4 h-4 text-green-600" />
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
+                              onPayment={() => {
+                                setSelectedCustomer(customer);
+                                setShowPayment(true);
+                              }}
+                              onDelete={() => {
                                 setSelectedCustomer(customer);
                                 setShowDeleteDialog(true);
                               }}
-                              title="Delete customer"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-600" />
-                            </Button>
-                          </div>
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredCustomers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                          No customers found
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                  {filteredCustomers.length === 0 && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="text-center py-8 text-slate-500"
-                      >
-                        No customers found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </ColorCard>
 
-        {/* Payment Dialog */}
-        <Dialog open={showPayment} onOpenChange={setShowPayment}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Receive Payment</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Customer</Label>
-                <Input value={selectedCustomer?.name || ''} disabled />
-              </div>
-              <div>
-                <Label>Outstanding Amount</Label>
-                <Input
-                  value={formatCurrency(selectedCustomer?.outstanding || 0)}
-                  disabled
-                />
-              </div>
-              <div>
-                <Label>Receiving Amount</Label>
-                <Input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  min="0"
-                />
-              </div>
-              <Button
-                onClick={handleReceivePayment}
-                className="w-full"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Record Payment
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CustomerFormDialog
+          open={showAddCustomer}
+          onOpenChange={setShowAddCustomer}
+          editing={false}
+          form={formData}
+          onFormChange={setFormData}
+          onSave={handleSaveCustomer}
+          saving={saving}
+        />
 
-        {/* Edit Customer Dialog */}
-        <Dialog open={showEditCustomer} onOpenChange={setShowEditCustomer}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Customer</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Name *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="Customer name"
-                />
-              </div>
-              <div>
-                <Label>Phone *</Label>
-                <Input
-                  value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  placeholder="Phone number"
-                />
-              </div>
-              <div>
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  placeholder="Email address"
-                />
-              </div>
-              <div>
-                <Label>Address</Label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  placeholder="Address"
-                />
-              </div>
-              <Button
-                onClick={handleUpdateCustomer}
-                className="w-full"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Update Customer
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CustomerFormDialog
+          open={showEditCustomer}
+          onOpenChange={setShowEditCustomer}
+          editing={true}
+          form={formData}
+          onFormChange={setFormData}
+          onSave={handleUpdateCustomer}
+          saving={saving}
+        />
 
-        {/* Link Supplier Dialog */}
-        <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Link Customer to Supplier
-                </div>
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
-                If this customer is also your supplier (same person/company),
-                link them to auto-track net balance. Their receivable and payable
-                will be shown as a single net amount and can be settled from the
-                Suppliers page.
-              </div>
-              <div>
-                <Label>Customer</Label>
-                <Input value={selectedCustomer?.name || ''} disabled />
-              </div>
-              <div>
-                <Label>Link to Supplier</Label>
-                <Select
-                  value={selectedSupplierId}
-                  onValueChange={setSelectedSupplierId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a supplier..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">
-                      -- No Link (Remove) --
-                    </SelectItem>
-                    {getAvailableSuppliers().map((s: any) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        {s.name} ({s.phone})
-                        {s.outstanding > 0
-                          ? ` - Payable: ${formatCurrency(s.outstanding)}`
-                          : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={handleLinkSupplier}
-                className="w-full"
-                disabled={saving}
-              >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {selectedSupplierId === '__none__'
-                  ? 'Remove Link'
-                  : 'Link Supplier'}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <ReceivePaymentDialog
+          open={showPayment}
+          onOpenChange={setShowPayment}
+          customerName={selectedCustomer?.name || ''}
+          outstanding={selectedCustomer?.outstanding || 0}
+          amount={paymentAmount}
+          onAmountChange={setPaymentAmount}
+          onSave={handleReceivePayment}
+          saving={saving}
+        />
 
-        {/* Delete Confirmation Dialog */}
+        <LinkSupplierDialog
+          open={showLinkDialog}
+          onOpenChange={setShowLinkDialog}
+          customerName={selectedCustomer?.name || ''}
+          supplierId={selectedSupplierId}
+          onSupplierChange={setSelectedSupplierId}
+          suppliers={getAvailableSuppliers()}
+          onSave={handleLinkSupplier}
+          saving={saving}
+        />
+
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Customer</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete{' '}
-                <strong>{selectedCustomer?.name}</strong>? This action cannot be
-                undone.
+                Are you sure you want to delete <strong>{selectedCustomer?.name}</strong>? This
+                action cannot be undone.
                 {selectedCustomer?.outstanding > 0 && (
                   <span className="block mt-2 text-orange-600">
                     Warning: This customer has an outstanding balance of{' '}
@@ -771,7 +666,7 @@ export default function CustomersPage() {
               <AlertDialogAction
                 onClick={handleDeleteCustomer}
                 disabled={saving}
-                className="bg-red-600 hover:bg-red-700"
+                className="rounded-xl bg-red-600 hover:bg-red-700"
               >
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Delete

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -13,29 +14,32 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Plus, Loader2 } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Search, Receipt, Hash, Tag, ArrowRight } from 'lucide-react';
 import { expensesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, PAYMENT_MODES } from '@/utils/constant';
+import { formatCurrency } from '@/utils/constant';
 import moment from 'moment';
+import {
+  ColorCard,
+  EXPENSE_GRADIENT,
+  formatAccountingDate,
+  getCategoryBadge,
+  NewExpenseButton,
+  SalesPageHero,
+  SummaryStat,
+} from '@/components/expenses/expenses-ui';
+import {
+  ExpenseFormDialog,
+  type ExpenseFormData,
+} from '@/components/expenses/expense-form-dialog';
 
-const categories = ['Rent', 'Salary', 'Electricity', 'Repair', 'Marketing', 'Transport', 'Other'];
+const defaultForm = (): ExpenseFormData => ({
+  category: '',
+  amount: '',
+  date: moment().format('YYYY-MM-DD'),
+  paymentMode: 'Cash',
+  description: '',
+});
 
 export default function ExpensesPage() {
   const { toast } = useToast();
@@ -43,16 +47,9 @@ export default function ExpensesPage() {
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showAddExpense, setShowAddExpense] = useState(false);
-
-  // Form state
-  const [formData, setFormData] = useState({
-    category: '',
-    amount: '',
-    date: moment().format('YYYY-MM-DD'),
-    paymentMode: 'Cash',
-    description: '',
-  });
+  const [formData, setFormData] = useState<ExpenseFormData>(defaultForm());
 
   const fetchExpenses = async () => {
     try {
@@ -82,6 +79,18 @@ export default function ExpensesPage() {
     fetchExpenses();
   }, []);
 
+  const filteredExpenses = expenses.filter(
+    (e) =>
+      e.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      e.paymentMode?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleOpenAdd = () => {
+    setFormData(defaultForm());
+    setShowAddExpense(true);
+  };
+
   const handleSaveExpense = async () => {
     if (!formData.category || !formData.amount) {
       toast({
@@ -97,22 +106,11 @@ export default function ExpensesPage() {
       await expensesApi.create({
         ...formData,
         amount: parseFloat(formData.amount),
-        // Important: 'YYYY-MM-DD' parsed as UTC will shift time in local TZ.
-        // Store as local start-of-day instead.
         date: moment(formData.date, 'YYYY-MM-DD').startOf('day').toDate(),
       });
-      toast({
-        title: 'Success',
-        description: 'Expense added successfully',
-      });
+      toast({ title: 'Success', description: 'Expense added successfully' });
       setShowAddExpense(false);
-      setFormData({
-        category: '',
-        amount: '',
-        date: moment().format('YYYY-MM-DD'),
-        paymentMode: 'Cash',
-        description: '',
-      });
+      setFormData(defaultForm());
       fetchExpenses();
     } catch (error: any) {
       toast({
@@ -125,181 +123,183 @@ export default function ExpensesPage() {
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString();
-  };
+  const topCategory = summary?.byCategory?.[0];
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Expenses</h1>
-            <p className="text-slate-600">Track business expenses</p>
-          </div>
-          <Dialog open={showAddExpense} onOpenChange={setShowAddExpense}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Expense
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Expenses"
+          description="Track business expenses and spending by category"
+          badge="Money Out"
+          gradient={EXPENSE_GRADIENT}
+          actions={
+            <Link href="/other-income">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="rounded-xl bg-white/15 text-white hover:bg-white/25 border-0 w-full sm:w-auto"
+              >
+                Other Income
+                <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Expense</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Category *</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Amount *</Label>
-                  <Input
-                    type="number"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="Enter amount"
-                    min="0"
-                  />
-                </div>
-                <div>
-                  <Label>Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Payment Mode</Label>
-                  <Select
-                    value={formData.paymentMode}
-                    onValueChange={(value) => setFormData({ ...formData, paymentMode: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_MODES.map((mode) => (
-                        <SelectItem key={mode} value={mode}>
-                          {mode}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Add description"
-                    rows={3}
-                  />
-                </div>
-                <Button onClick={handleSaveExpense} className="w-full" disabled={saving}>
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Save Expense
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+            </Link>
+          }
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="This Month"
+            value={loading ? '-' : formatCurrency(summary?.totalExpenses || 0)}
+            icon={Receipt}
+            theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
+          />
+          <SummaryStat
+            label="Transactions"
+            value={loading ? '-' : String(summary?.totalCount || 0)}
+            icon={Hash}
+            theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
+          />
+          <SummaryStat
+            label="Top Category"
+            value={loading ? '-' : topCategory?._id || '—'}
+            icon={Tag}
+            theme="bg-gradient-to-br from-red-50 to-rose-100 text-red-900 ring-1 ring-red-100"
+          />
+          <SummaryStat
+            label="Top Amount"
+            value={loading ? '-' : formatCurrency(topCategory?.total || 0)}
+            icon={Receipt}
+            theme="bg-gradient-to-br from-amber-50 to-orange-100 text-amber-900 ring-1 ring-amber-100"
+          />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Total Expenses (This Month)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">
-                {loading ? '-' : formatCurrency(summary?.totalExpenses || 0)}
-              </div>
-              <p className="text-sm text-slate-600 mt-2">
-                {summary?.totalCount || 0} transactions
-              </p>
-            </CardContent>
-          </Card>
+        {summary?.byCategory?.length > 0 && (
+          <ColorCard
+            title="Expenses by Category"
+            headerClassName="bg-gradient-to-r from-rose-50 to-orange-50 border-rose-100/50 text-rose-900"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {summary.byCategory.map((cat: any) => (
+                <div
+                  key={cat._id}
+                  className="flex items-center justify-between rounded-xl bg-gradient-to-br from-white to-rose-50/50 ring-1 ring-rose-100 px-4 py-3"
+                >
+                  <Badge className={getCategoryBadge(cat._id)}>{cat._id}</Badge>
+                  <span className="font-bold text-rose-800">{formatCurrency(cat.total)}</span>
+                </div>
+              ))}
+            </div>
+          </ColorCard>
+        )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses by Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {summary?.byCategory?.map((cat: any) => (
-                  <div key={cat._id} className="flex justify-between items-center">
-                    <span className="text-sm">{cat._id}</span>
-                    <span className="font-medium">{formatCurrency(cat.total)}</span>
+        <ColorCard
+          title="Recent Expenses"
+          headerClassName="bg-gradient-to-r from-red-50 via-rose-50 to-orange-50 border-rose-100/50 text-rose-900"
+        >
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search category, description, payment..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
+            </div>
+            <NewExpenseButton onClick={handleOpenAdd} />
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 lg:hidden">
+                {filteredExpenses.map((expense) => (
+                  <div
+                    key={expense._id}
+                    className="rounded-2xl border border-rose-100/80 bg-gradient-to-br from-white to-rose-50/30 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Badge className={getCategoryBadge(expense.category)}>
+                          {expense.category}
+                        </Badge>
+                        <p className="text-sm text-slate-600 mt-2 line-clamp-2">
+                          {expense.description || 'No description'}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {formatAccountingDate(expense.date)} · {expense.paymentMode}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-xl bg-rose-50 px-2.5 py-1 text-sm font-bold text-rose-700 ring-1 ring-rose-100">
+                        {formatCurrency(expense.amount)}
+                      </span>
+                    </div>
                   </div>
                 ))}
-                {(!summary?.byCategory || summary.byCategory.length === 0) && (
-                  <p className="text-sm text-slate-500">No expenses yet</p>
+                {filteredExpenses.length === 0 && (
+                  <p className="text-center py-8 text-slate-500">No expenses found</p>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Expenses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+              <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-rose-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-rose-50 to-red-50/80">
+                      <TableHead>Date</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Payment Mode</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredExpenses.map((expense) => (
+                      <TableRow key={expense._id} className="hover:bg-rose-50/20">
+                        <TableCell>{formatAccountingDate(expense.date)}</TableCell>
+                        <TableCell>
+                          <Badge className={getCategoryBadge(expense.category)}>
+                            {expense.category}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-slate-600 max-w-xs truncate">
+                          {expense.description || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <span className="rounded-lg bg-slate-50 px-2 py-1 text-sm">
+                            {expense.paymentMode}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-rose-700">
+                          {formatCurrency(expense.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredExpenses.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                          No expenses found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Payment Mode</TableHead>
-                    <TableHead>Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {expenses.map((expense) => (
-                    <TableRow key={expense._id}>
-                      <TableCell>{formatDate(expense.date)}</TableCell>
-                      <TableCell>{expense.category}</TableCell>
-                      <TableCell>{expense.description || '-'}</TableCell>
-                      <TableCell>{expense.paymentMode}</TableCell>
-                      <TableCell className="font-medium text-red-600">
-                        {formatCurrency(expense.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {expenses.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-slate-500">
-                        No expenses found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+            </>
+          )}
+        </ColorCard>
+
+        <ExpenseFormDialog
+          open={showAddExpense}
+          onOpenChange={setShowAddExpense}
+          form={formData}
+          onFormChange={setFormData}
+          onSave={handleSaveExpense}
+          saving={saving}
+        />
       </div>
     </MainLayout>
   );

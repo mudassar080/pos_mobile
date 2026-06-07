@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -13,10 +12,70 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, AlertTriangle, Smartphone, Package, Loader2 } from 'lucide-react';
+import {
+  Search,
+  AlertTriangle,
+  Smartphone,
+  Package,
+  Loader2,
+  DollarSign,
+  Warehouse,
+} from 'lucide-react';
 import { productsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import {
+  ColorCard,
+  SalesPageHero,
+  STOCK_GRADIENT,
+  SummaryStat,
+} from '@/components/stock/stock-ui';
+
+function getStatusBadge(product: any) {
+  if (product.imei) {
+    switch (product.status) {
+      case 'available':
+        return (
+          <Badge className="bg-gradient-to-r from-emerald-500 to-green-600 border-0">
+            Available
+          </Badge>
+        );
+      case 'sold':
+        return (
+          <Badge className="bg-gradient-to-r from-blue-500 to-indigo-600 border-0">Sold</Badge>
+        );
+      case 'returned':
+        return (
+          <Badge className="bg-gradient-to-r from-orange-500 to-amber-500 border-0">
+            Returned
+          </Badge>
+        );
+      case 'damaged':
+        return (
+          <Badge className="bg-gradient-to-r from-rose-500 to-red-600 border-0">Damaged</Badge>
+        );
+      default:
+        return <Badge variant="outline">{product.status}</Badge>;
+    }
+  }
+  if ((product.quantity || 0) <= 0) {
+    return (
+      <Badge className="bg-gradient-to-r from-rose-500 to-red-600 border-0">Out of Stock</Badge>
+    );
+  }
+  if ((product.quantity || 0) <= 5) {
+    return (
+      <Badge className="bg-gradient-to-r from-orange-500 to-amber-500 border-0">Low Stock</Badge>
+    );
+  }
+  return (
+    <Badge className="bg-gradient-to-r from-emerald-500 to-teal-600 border-0">In Stock</Badge>
+  );
+}
+
+function getDisplayQty(product: any) {
+  return product.imei ? (product.status === 'available' ? 1 : 0) : product.quantity || 0;
+}
 
 export default function StockPage() {
   const { toast } = useToast();
@@ -66,178 +125,216 @@ export default function StockPage() {
       p.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusBadge = (product: any) => {
-    if (product.imei) {
-      switch (product.status) {
-        case 'available':
-          return <Badge className="bg-green-600">Available</Badge>;
-        case 'sold':
-          return <Badge className="bg-blue-600">Sold</Badge>;
-        case 'returned':
-          return <Badge className="bg-orange-600">Returned</Badge>;
-        case 'damaged':
-          return <Badge className="bg-red-600">Damaged</Badge>;
-        default:
-          return <Badge>{product.status}</Badge>;
-      }
-    }
-    if ((product.quantity || 0) <= 0) {
-      return <Badge className="bg-red-600">Out of Stock</Badge>;
-    }
-    if ((product.quantity || 0) <= 5) {
-      return <Badge className="bg-orange-600">Low Stock</Badge>;
-    }
-    return <Badge className="bg-green-600">In Stock</Badge>;
-  };
-
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Stock Management</h1>
-          <p className="text-slate-600">Manage phone and accessory inventory</p>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Stock Management"
+          description="Track phone and accessory inventory levels"
+          badge="Inventory"
+          gradient={STOCK_GRADIENT}
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Phones Available"
+            value={loading ? '-' : String(stockSummary?.phones?.available || 0)}
+            icon={Smartphone}
+            theme="bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-900 ring-1 ring-blue-100"
+          />
+          <SummaryStat
+            label="Accessories Stock"
+            value={loading ? '-' : String(stockSummary?.accessories?.totalQuantity || 0)}
+            icon={Package}
+            theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
+          />
+          <SummaryStat
+            label="Stock Value"
+            value={loading ? '-' : formatCurrency(stockSummary?.totalValue || 0)}
+            icon={DollarSign}
+            theme="bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-900 ring-1 ring-teal-100"
+          />
+          <SummaryStat
+            label="Low Stock Items"
+            value={loading ? '-' : String(lowStock.length)}
+            icon={AlertTriangle}
+            theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
+          />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                <Smartphone className="w-4 h-4" />
-                Phones Available
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {loading ? '-' : stockSummary?.phones?.available || 0}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                Accessories Stock
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {loading ? '-' : stockSummary?.accessories?.totalQuantity || 0}
-              </div>
-              <p className="text-sm text-slate-600">
-                {stockSummary?.accessories?.totalProducts || 0} products
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Stock Value
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '-' : formatCurrency(stockSummary?.totalValue || 0)}
-              </div>
-              <p className="text-sm text-slate-600">
-                Sale Value: {loading ? '-' : formatCurrency(stockSummary?.totalSellingValue || 0)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-orange-500" />
-                Low Stock Items
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {loading ? '-' : lowStock.length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Stock Inventory ({filteredProducts.length})</CardTitle>
-              <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search by name, IMEI, brand, category..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>IMEI</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead className="text-center">Qty</TableHead>
-                    <TableHead className="text-right">Purchase Price</TableHead>
-                    <TableHead className="text-right">Selling Price</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow key={product._id}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>{product.category || '-'}</TableCell>
-                      <TableCell>{product.brand || '-'}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {product.imei || '-'}
-                      </TableCell>
-                      <TableCell>{product.color || '-'}</TableCell>
-                      <TableCell className="text-center">
-                        <span
-                          className={
-                            !product.imei && (product.quantity || 0) <= 5
-                              ? 'text-orange-600 font-bold'
-                              : ''
-                          }
-                        >
-                          {product.imei ? (product.status === 'available' ? 1 : 0) : product.quantity || 0}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(product.purchasePrice || 0)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {product.sellingPrice ? formatCurrency(product.sellingPrice) : '-'}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(product)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-slate-500">
-                        No products found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+        {!loading && stockSummary?.totalSellingValue != null && (
+          <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-4 py-2 text-sm text-teal-800 ring-1 ring-teal-100">
+            <Warehouse className="h-4 w-4" />
+            Sale value:{' '}
+            <strong>{formatCurrency(stockSummary.totalSellingValue)}</strong>
+            {stockSummary?.accessories?.totalProducts != null && (
+              <span className="text-teal-600">
+                · {stockSummary.accessories.totalProducts} accessory products
+              </span>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        )}
+
+        {!loading && lowStock.length > 0 && (
+          <div className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50/80 p-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-orange-900">
+                {lowStock.length} item{lowStock.length !== 1 ? 's' : ''} running low
+              </p>
+              <p className="text-sm text-orange-700 mt-0.5">
+                {lowStock
+                  .slice(0, 3)
+                  .map((p: any) => p.name)
+                  .join(', ')}
+                {lowStock.length > 3 && ` and ${lowStock.length - 3} more`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <ColorCard
+          title={`Stock Inventory (${filteredProducts.length})`}
+          headerClassName="bg-gradient-to-r from-teal-50 via-emerald-50 to-green-50 border-emerald-100/50 text-emerald-900"
+        >
+          <div className="mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by name, IMEI, brand, category..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3 md:hidden">
+                {filteredProducts.map((product) => {
+                  const qty = getDisplayQty(product);
+                  const isLow = !product.imei && (product.quantity || 0) <= 5;
+
+                  return (
+                    <div
+                      key={product._id}
+                      className="rounded-2xl border border-emerald-100/80 bg-gradient-to-br from-white to-teal-50/30 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-emerald-900">{product.name}</p>
+                          <p className="text-sm text-slate-600 mt-0.5">
+                            {[product.brand, product.category].filter(Boolean).join(' · ') || '—'}
+                          </p>
+                          {product.imei && (
+                            <p className="text-xs font-mono text-indigo-600 mt-1">{product.imei}</p>
+                          )}
+                        </div>
+                        {getStatusBadge(product)}
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-xs text-slate-500">Qty</p>
+                          <p
+                            className={`font-bold ${isLow ? 'text-orange-600' : 'text-emerald-800'}`}
+                          >
+                            {qty}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-teal-50 px-3 py-2">
+                          <p className="text-xs text-teal-600">Purchase</p>
+                          <p className="font-semibold text-teal-800">
+                            {formatCurrency(product.purchasePrice || 0)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-emerald-50 px-3 py-2">
+                          <p className="text-xs text-emerald-600">Selling</p>
+                          <p className="font-semibold text-emerald-800">
+                            {product.sellingPrice ? formatCurrency(product.sellingPrice) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      {product.color && (
+                        <p className="mt-2 text-xs text-slate-500">Color: {product.color}</p>
+                      )}
+                    </div>
+                  );
+                })}
+                {filteredProducts.length === 0 && (
+                  <p className="text-center py-8 text-slate-500">No products found</p>
+                )}
+              </div>
+
+              <div className="hidden md:block overflow-x-auto rounded-xl ring-1 ring-emerald-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-teal-50 to-emerald-50/80">
+                      <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>IMEI</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead className="text-center">Qty</TableHead>
+                      <TableHead className="text-right">Purchase Price</TableHead>
+                      <TableHead className="text-right">Selling Price</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProducts.map((product) => {
+                      const qty = getDisplayQty(product);
+                      const isLow = !product.imei && (product.quantity || 0) <= 5;
+
+                      return (
+                        <TableRow key={product._id} className="hover:bg-emerald-50/20">
+                          <TableCell className="font-medium text-emerald-900">
+                            {product.name}
+                          </TableCell>
+                          <TableCell className="text-slate-600 text-sm">
+                            {product.category || '—'}
+                          </TableCell>
+                          <TableCell>{product.brand || '—'}</TableCell>
+                          <TableCell className="font-mono text-sm text-indigo-600">
+                            {product.imei || '—'}
+                          </TableCell>
+                          <TableCell>{product.color || '—'}</TableCell>
+                          <TableCell className="text-center">
+                            <span
+                              className={
+                                isLow ? 'font-bold text-orange-600' : 'font-semibold text-emerald-700'
+                              }
+                            >
+                              {qty}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(product.purchasePrice || 0)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-teal-700">
+                            {product.sellingPrice ? formatCurrency(product.sellingPrice) : '—'}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(product)}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredProducts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-slate-500">
+                          No products found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </ColorCard>
       </div>
     </MainLayout>
   );

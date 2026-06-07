@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -24,7 +23,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { format } from 'date-fns';
-import { BookOpen, Calendar as CalendarIcon, Download, FileText, Loader2, TrendingUp } from 'lucide-react';
+import {
+  BarChart3,
+  Calendar as CalendarIcon,
+  FileText,
+  Loader2,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import moment from 'moment';
 import {
   expensesApi,
@@ -36,6 +44,16 @@ import {
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/utils/constant';
 import { useToast } from '@/hooks/use-toast';
+import {
+  ColorCard,
+  DayBookTypeBadge,
+  ExportCsvButton,
+  REPORT_GRADIENT,
+  reportBtnPrimary,
+  SalesPageHero,
+  SummaryStat,
+  ViewToggle,
+} from '@/components/reports/reports-ui';
 
 type GroupBy = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type ReportsView = 'report' | 'daybook';
@@ -544,417 +562,473 @@ export default function ReportsPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">Reports</h1>
-              <p className="text-slate-600">
-                Generate reports by field, or open Day Book for a single day summary.
-              </p>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Reports"
+          description="Generate reports by field, or open Day Book for a single day summary"
+          badge="Analytics"
+          gradient={REPORT_GRADIENT}
+          actions={
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <ViewToggle view={view} onViewChange={setView} />
+              {view === 'report' && (
+                <ExportCsvButton onClick={exportCsv} disabled={!hasGenerated || loading} />
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={view === 'report' ? 'default' : 'outline'}
-                onClick={() => setView('report')}
-              >
-                Reports
-              </Button>
-              <Button
-                variant={view === 'daybook' ? 'default' : 'outline'}
-                onClick={() => setView('daybook')}
-              >
-                <BookOpen className="w-4 h-4 mr-2" />
-                Day Book
-              </Button>
-            </div>
-          </div>
-        </div>
+          }
+        />
 
         {view === 'report' ? (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Report Filters</CardTitle>
-                <Button variant="outline" onClick={exportCsv} disabled={!hasGenerated || loading}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export CSV
+          <ColorCard
+            title="Report Filters"
+            headerClassName="bg-gradient-to-r from-slate-50 to-zinc-50 border-slate-100/50 text-slate-900"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+              <div className="space-y-2">
+                <Label className="text-slate-600">Report Field</Label>
+                <Select
+                  value={reportField}
+                  onValueChange={(value) => setReportField(value as ReportField)}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reportFields.map((field) => (
+                      <SelectItem key={field.value} value={field.value}>
+                        {field.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600">Group By</Label>
+                <Select value={groupBy} onValueChange={(value) => setGroupBy(value as GroupBy)}>
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600">From Date</Label>
+                <Popover open={fromPickerOpen} onOpenChange={setFromPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal rounded-xl',
+                        !fromDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                      {fromDate
+                        ? format(new Date(`${fromDate}T00:00:00`), 'PPP')
+                        : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={fromDate ? new Date(`${fromDate}T00:00:00`) : undefined}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        setFromDate(toIsoDateString(date));
+                        setFromPickerOpen(false);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600">To Date</Label>
+                <Popover open={toPickerOpen} onOpenChange={setToPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal rounded-xl',
+                        !toDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                      {toDate ? format(new Date(`${toDate}T00:00:00`), 'PPP') : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={toDate ? new Date(`${toDate}T00:00:00`) : undefined}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        setToDate(toIsoDateString(date));
+                        setToPickerOpen(false);
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  className={cn('w-full', reportBtnPrimary)}
+                  onClick={fetchReportData}
+                  disabled={loading}
+                >
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Generate Report
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                  <Label>Report Field</Label>
-                  <Select
-                    value={reportField}
-                    onValueChange={(value) => setReportField(value as ReportField)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {reportFields.map((field) => (
-                        <SelectItem key={field.value} value={field.value}>
-                          {field.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Group By</Label>
-                  <Select value={groupBy} onValueChange={(value) => setGroupBy(value as GroupBy)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="yearly">Yearly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>From Date</Label>
-                  <Popover open={fromPickerOpen} onOpenChange={setFromPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          'w-full justify-start text-left font-normal',
-                          !fromDate && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {fromDate
-                          ? format(new Date(`${fromDate}T00:00:00`), 'PPP')
-                          : 'Pick a date'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={fromDate ? new Date(`${fromDate}T00:00:00`) : undefined}
-                        onSelect={(date) => {
-                          if (!date) return;
-                          setFromDate(toIsoDateString(date));
-                          setFromPickerOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label>To Date</Label>
-                  <Popover open={toPickerOpen} onOpenChange={setToPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          'w-full justify-start text-left font-normal',
-                          !toDate && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {toDate ? format(new Date(`${toDate}T00:00:00`), 'PPP') : 'Pick a date'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={toDate ? new Date(`${toDate}T00:00:00`) : undefined}
-                        onSelect={(date) => {
-                          if (!date) return;
-                          setToDate(toIsoDateString(date));
-                          setToPickerOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex items-end">
-                  <Button className="w-full" onClick={fetchReportData} disabled={loading}>
-                    {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Generate Report
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </ColorCard>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Day Book</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div>
-                  <Label>Date</Label>
-                  <Popover open={dayBookPickerOpen} onOpenChange={setDayBookPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          'w-full justify-start text-left font-normal',
-                          !dayBookDate && 'text-muted-foreground'
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dayBookDate ? format(new Date(`${dayBookDate}T00:00:00`), 'PPP') : 'Pick a date'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={dayBookDate ? new Date(`${dayBookDate}T00:00:00`) : undefined}
-                        onSelect={(date) => {
-                          if (!date) return;
-                          setDayBookDate(toIsoDateString(date));
-                          setDayBookPickerOpen(false);
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label>Quick select</Label>
-                  <div className="flex gap-2">
+          <ColorCard
+            title="Day Book Filters"
+            headerClassName="bg-gradient-to-r from-zinc-50 to-slate-50 border-zinc-100/50 text-zinc-900"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="space-y-2">
+                <Label className="text-slate-600">Date</Label>
+                <Popover open={dayBookPickerOpen} onOpenChange={setDayBookPickerOpen}>
+                  <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="flex-1"
-                      onClick={() => setDayBookDate(today())}
-                      disabled={loading}
+                      className={cn(
+                        'w-full justify-start text-left font-normal rounded-xl',
+                        !dayBookDate && 'text-muted-foreground'
+                      )}
                     >
-                      Today
+                      <CalendarIcon className="mr-2 h-4 w-4 text-slate-500" />
+                      {dayBookDate
+                        ? format(new Date(`${dayBookDate}T00:00:00`), 'PPP')
+                        : 'Pick a date'}
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        const d = new Date();
-                        d.setDate(d.getDate() - 1);
-                        setDayBookDate(toIsoDateString(d));
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dayBookDate ? new Date(`${dayBookDate}T00:00:00`) : undefined}
+                      onSelect={(date) => {
+                        if (!date) return;
+                        setDayBookDate(toIsoDateString(date));
+                        setDayBookPickerOpen(false);
                       }}
-                      disabled={loading}
-                    >
-                      Yesterday
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Button className="w-full" onClick={fetchDayBookData} disabled={loading}>
-                    {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Load Day Book
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-slate-600">Quick select</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl border-slate-200"
+                    onClick={() => setDayBookDate(today())}
+                    disabled={loading}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl border-slate-200"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() - 1);
+                      setDayBookDate(toIsoDateString(d));
+                    }}
+                    disabled={loading}
+                  >
+                    Yesterday
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <Button
+                  className={cn('w-full', reportBtnPrimary)}
+                  onClick={fetchDayBookData}
+                  disabled={loading}
+                >
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Load Day Book
+                </Button>
+              </div>
+            </div>
+          </ColorCard>
         )}
 
         {view === 'report' ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-slate-600">Selected Field</div>
-                    <div className="text-xl font-bold">{generatedFieldConfig.label}</div>
-                  </div>
-                  <FileText className="w-8 h-8 text-slate-400" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-slate-600">Report Total</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <SummaryStat
+              label="Selected Field"
+              value={generatedFieldConfig.label}
+              icon={FileText}
+              theme="bg-gradient-to-br from-slate-50 to-zinc-100 text-slate-900 ring-1 ring-slate-100"
+            />
+            <SummaryStat
+              label="Report Total"
+              value={hasGenerated ? formatReportValue(reportTotal, generatedField) : '-'}
+              icon={BarChart3}
+              theme={
+                generatedField === 'sales-profit' && reportTotal < 0
+                  ? 'bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100'
+                  : 'bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100'
+              }
+            />
+            <SummaryStat
+              label="Average Per Period"
+              value={hasGenerated ? formatReportValue(averagePerPeriod, generatedField) : '-'}
+              icon={TrendingUp}
+              theme="bg-gradient-to-br from-indigo-50 to-blue-100 text-indigo-900 ring-1 ring-indigo-100"
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <SummaryStat
+              label="Sales Total"
+              value={hasGeneratedDayBook ? formatCurrency(dayBookSummary.salesTotal) : '-'}
+              icon={TrendingUp}
+              theme="bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100"
+            />
+            <SummaryStat
+              label="Sales Profit"
+              value={hasGeneratedDayBook ? formatCurrency(dayBookSummary.salesProfit) : '-'}
+              icon={Wallet}
+              theme={
+                dayBookSummary.salesProfit < 0
+                  ? 'bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100'
+                  : 'bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-900 ring-1 ring-teal-100'
+              }
+            />
+            <SummaryStat
+              label="Expenses / Other"
+              value={
+                hasGeneratedDayBook
+                  ? formatCurrency(dayBookSummary.expensesTotal + dayBookSummary.otherIncomeTotal)
+                  : '-'
+              }
+              icon={Receipt}
+              theme="bg-gradient-to-br from-amber-50 to-orange-100 text-amber-900 ring-1 ring-amber-100"
+            />
+            <SummaryStat
+              label="Net Profit / Loss"
+              value={hasGeneratedDayBook ? formatCurrency(dayBookSummary.netProfit) : '-'}
+              icon={TrendingDown}
+              theme={
+                dayBookSummary.netProfit < 0
+                  ? 'bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100'
+                  : 'bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-900 ring-1 ring-indigo-100'
+              }
+            />
+          </div>
+        )}
+
+        {view === 'report' && hasGenerated && (
+          <p className="text-sm text-slate-500 px-1">{reportCount} records included</p>
+        )}
+
+        {view === 'report' ? (
+          <ColorCard
+            title={
+              hasGenerated
+                ? `${generatedFieldConfig.label} Report (${generatedGroupBy})`
+                : 'Generated Report'
+            }
+            headerClassName="bg-gradient-to-r from-slate-50 via-zinc-50 to-gray-50 border-slate-100/50 text-slate-900"
+          >
+            {!hasGenerated ? (
+              <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
+                Select a field, date range, and grouping, then generate the report.
+              </div>
+            ) : reportRows.length === 0 ? (
+              <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
+                No records found for the selected filters.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3 lg:hidden">
+                  {reportRows.map((row) => (
                     <div
-                      className={`text-2xl font-bold ${
-                        generatedField === 'sales-profit' && reportTotal < 0
-                          ? 'text-red-600'
-                          : 'text-green-600'
-                      }`}
+                      key={row.period}
+                      className="rounded-2xl border border-slate-100/80 bg-gradient-to-br from-white to-slate-50/40 p-4 shadow-sm"
                     >
-                      {formatReportValue(reportTotal, generatedField)}
-                    </div>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-slate-400" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-slate-600">Average Per Period</div>
-                <div className="text-2xl font-bold">
-                  {formatReportValue(averagePerPeriod, generatedField)}
-                </div>
-                <div className="text-sm text-slate-500 mt-1">{reportCount} records included</div>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-slate-600">Sales (Total / Profit)</div>
-                <div className="text-xl font-bold">{formatCurrency(dayBookSummary.salesTotal)}</div>
-                <div
-                  className={cn(
-                    'text-sm mt-1 font-medium',
-                    dayBookSummary.salesProfit < 0 ? 'text-red-600' : 'text-green-600'
-                  )}
-                >
-                  Profit: {formatCurrency(dayBookSummary.salesProfit)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-slate-600">Expenses / Other Income</div>
-                <div className="text-sm mt-1">
-                  <span className="font-medium">Expenses:</span> {formatCurrency(dayBookSummary.expensesTotal)}
-                </div>
-                <div className="text-sm mt-1">
-                  <span className="font-medium">Other:</span> {formatCurrency(dayBookSummary.otherIncomeTotal)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-slate-600">Purchases (Total)</div>
-                <div className="text-xl font-bold">{formatCurrency(dayBookSummary.purchasesTotal)}</div>
-                <div className="text-xs text-slate-500 mt-1">
-                  Paid {formatCurrency(dayBookSummary.purchasePaid)} • Due {formatCurrency(dayBookSummary.purchaseDue)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-sm text-slate-600">Net Profit / Loss</div>
-                <div
-                  className={cn(
-                    'text-2xl font-bold',
-                    dayBookSummary.netProfit < 0 ? 'text-red-600' : 'text-green-600'
-                  )}
-                >
-                  {formatCurrency(dayBookSummary.netProfit)}
-                </div>
-                <div className="text-xs text-slate-500 mt-1">{dayBookSummary.totalRows} entries</div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {view === 'report' ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {hasGenerated
-                  ? `${generatedFieldConfig.label} Report (${generatedGroupBy})`
-                  : 'Generated Report'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!hasGenerated ? (
-                <div className="text-center text-slate-500 py-10">
-                  Select a field, date range, and grouping, then generate the report.
-                </div>
-              ) : reportRows.length === 0 ? (
-                <div className="text-center text-slate-500 py-10">
-                  No records found for the selected filters.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Period</TableHead>
-                      <TableHead>{generatedFieldConfig.label}</TableHead>
-                      <TableHead>Records</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reportRows.map((row) => (
-                      <TableRow key={row.period}>
-                        <TableCell className="font-medium">{row.period}</TableCell>
-                        <TableCell
-                          className={
-                            generatedField === 'sales-profit' && row.total < 0
-                              ? 'font-medium text-red-600'
-                              : 'font-medium'
-                          }
-                        >
-                          {formatReportValue(row.total, generatedField)}
-                        </TableCell>
-                        <TableCell>{row.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {hasGeneratedDayBook
-                  ? `Day Book — ${dayBookDate ? format(new Date(`${dayBookDate}T00:00:00`), 'PPP') : ''}`
-                  : 'Day Book Entries'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!hasGeneratedDayBook ? (
-                <div className="text-center text-slate-500 py-10">
-                  Pick a date and click “Load Day Book”.
-                </div>
-              ) : dayBookRows.length === 0 ? (
-                <div className="text-center text-slate-500 py-10">
-                  No activity found for this date.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Party / Note</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">Paid</TableHead>
-                      <TableHead className="text-right">Due</TableHead>
-                      <TableHead className="text-right">Profit</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {dayBookRows.map((row, idx) => (
-                      <TableRow key={`${row.type}-${row.time}-${idx}`}>
-                        <TableCell className="font-medium">{row.time}</TableCell>
-                        <TableCell>{row.type}</TableCell>
-                        <TableCell className="max-w-[420px] truncate">{row.party}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.amount)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.paid)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(row.due)}</TableCell>
-                        <TableCell
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{row.period}</p>
+                          <p className="text-xs text-slate-500 mt-1">{row.count} records</p>
+                        </div>
+                        <span
                           className={cn(
-                            'text-right font-medium',
-                            row.profit < 0 ? 'text-red-600' : row.profit > 0 ? 'text-green-600' : ''
+                            'shrink-0 rounded-xl px-2.5 py-1 text-sm font-bold ring-1',
+                            generatedField === 'sales-profit' && row.total < 0
+                              ? 'bg-rose-50 text-rose-700 ring-rose-100'
+                              : 'bg-emerald-50 text-emerald-700 ring-emerald-100'
                           )}
                         >
-                          {formatCurrency(row.profit)}
-                        </TableCell>
+                          {formatReportValue(row.total, generatedField)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-slate-100/70">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-slate-50 to-zinc-50/80">
+                        <TableHead>Period</TableHead>
+                        <TableHead>{generatedFieldConfig.label}</TableHead>
+                        <TableHead>Records</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {reportRows.map((row) => (
+                        <TableRow key={row.period} className="hover:bg-slate-50/30">
+                          <TableCell className="font-medium text-slate-900">{row.period}</TableCell>
+                          <TableCell
+                            className={cn(
+                              'font-semibold',
+                              generatedField === 'sales-profit' && row.total < 0
+                                ? 'text-rose-700'
+                                : 'text-slate-800'
+                            )}
+                          >
+                            {formatReportValue(row.total, generatedField)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="rounded-lg border-slate-200">
+                              {row.count}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+          </ColorCard>
+        ) : (
+          <ColorCard
+            title={
+              hasGeneratedDayBook
+                ? `Day Book — ${dayBookDate ? format(new Date(`${dayBookDate}T00:00:00`), 'PPP') : ''}`
+                : 'Day Book Entries'
+            }
+            headerClassName="bg-gradient-to-r from-zinc-50 via-slate-50 to-gray-50 border-zinc-100/50 text-zinc-900"
+          >
+            {!hasGeneratedDayBook ? (
+              <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
+                Pick a date and click &quot;Load Day Book&quot;.
+              </div>
+            ) : dayBookRows.length === 0 ? (
+              <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
+                No activity found for this date.
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3 lg:hidden">
+                  {dayBookRows.map((row, idx) => (
+                    <div
+                      key={`${row.type}-${row.time}-${idx}`}
+                      className="rounded-2xl border border-zinc-100/80 bg-gradient-to-br from-white to-zinc-50/40 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-slate-900">{row.time}</span>
+                            <DayBookTypeBadge type={row.type} />
+                          </div>
+                          <p className="text-sm text-slate-600 mt-1 truncate">{row.party}</p>
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-slate-900">
+                          {formatCurrency(row.amount)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+                        <div>
+                          <p className="text-slate-400">Paid</p>
+                          <p className="font-medium text-slate-700">{formatCurrency(row.paid)}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Due</p>
+                          <p className="font-medium text-slate-700">{formatCurrency(row.due)}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Profit</p>
+                          <p
+                            className={cn(
+                              'font-medium',
+                              row.profit < 0
+                                ? 'text-rose-700'
+                                : row.profit > 0
+                                  ? 'text-emerald-700'
+                                  : 'text-slate-700'
+                            )}
+                          >
+                            {formatCurrency(row.profit)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-zinc-100/70">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-zinc-50 to-slate-50/80">
+                        <TableHead>Time</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Party / Note</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="text-right">Paid</TableHead>
+                        <TableHead className="text-right">Due</TableHead>
+                        <TableHead className="text-right">Profit</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dayBookRows.map((row, idx) => (
+                        <TableRow key={`${row.type}-${row.time}-${idx}`} className="hover:bg-zinc-50/30">
+                          <TableCell className="font-medium text-slate-900">{row.time}</TableCell>
+                          <TableCell>
+                            <DayBookTypeBadge type={row.type} />
+                          </TableCell>
+                          <TableCell className="max-w-[420px] truncate text-slate-600">
+                            {row.party}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(row.amount)}
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.paid)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.due)}</TableCell>
+                          <TableCell
+                            className={cn(
+                              'text-right font-semibold',
+                              row.profit < 0
+                                ? 'text-rose-700'
+                                : row.profit > 0
+                                  ? 'text-emerald-700'
+                                  : ''
+                            )}
+                          >
+                            {formatCurrency(row.profit)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+          </ColorCard>
         )}
       </div>
     </MainLayout>

@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -12,19 +14,27 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { DollarSign, Loader2, Search } from 'lucide-react';
+  DollarSign,
+  Loader2,
+  Search,
+  Wallet,
+  Clock,
+  AlertTriangle,
+  Users,
+  ArrowRight,
+} from 'lucide-react';
 import { salesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import {
+  ColorCard,
+  formatAccountingDate,
+  getAgingBadge,
+  RECEIVABLE_GRADIENT,
+  SalesPageHero,
+  SummaryStat,
+} from '@/components/accounting/accounting-ui';
+import { AgingPaymentDialog } from '@/components/accounting/aging-payment-dialog';
 
 interface Receivable {
   _id: string;
@@ -88,6 +98,12 @@ export default function ReceivablesPage() {
       r.invoice?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const openPayment = (item: Receivable) => {
+    setSelectedReceivable(item);
+    setPaymentAmount(item.due.toString());
+    setShowPaymentDialog(true);
+  };
+
   const handleReceivePayment = async () => {
     if (!selectedReceivable || !paymentAmount) return;
 
@@ -104,10 +120,7 @@ export default function ReceivablesPage() {
     setSaving(true);
     try {
       await salesApi.updatePayment(selectedReceivable._id, { amount });
-      toast({
-        title: 'Success',
-        description: 'Payment received successfully',
-      });
+      toast({ title: 'Success', description: 'Payment received successfully' });
       setShowPaymentDialog(false);
       setSelectedReceivable(null);
       setPaymentAmount('');
@@ -123,244 +136,202 @@ export default function ReceivablesPage() {
     }
   };
 
-  const getAgingBadge = (aging: string) => {
-    if (aging === '0-30 days') {
-      return <Badge className="bg-green-600">{aging}</Badge>;
-    } else if (aging === '30-60 days') {
-      return <Badge className="bg-orange-600">{aging}</Badge>;
-    } else {
-      return <Badge className="bg-red-600">{aging}</Badge>;
-    }
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString();
-  };
-
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Receivables</h1>
-          <p className="text-slate-600">Track pending payments from customers</p>
+      <div className="space-y-6 sm:space-y-8">
+        <SalesPageHero
+          title="Receivables"
+          description="Track pending payments from customers"
+          badge="Money In"
+          gradient={RECEIVABLE_GRADIENT}
+          actions={
+            <Link href="/payables">
+              <Button
+                variant="secondary"
+                size="lg"
+                className="rounded-xl bg-white/15 text-white hover:bg-white/25 border-0 w-full sm:w-auto"
+              >
+                Payables
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+          }
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+          <SummaryStat
+            label="Total Receivables"
+            value={loading ? '-' : formatCurrency(summary?.totalReceivables || 0)}
+            icon={Wallet}
+            theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
+          />
+          <SummaryStat
+            label="0-30 Days"
+            value={loading ? '-' : formatCurrency(summary?.aging0to30 || 0)}
+            icon={Clock}
+            theme="bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100"
+          />
+          <SummaryStat
+            label="30-60 Days"
+            value={loading ? '-' : formatCurrency(summary?.aging30to60 || 0)}
+            icon={Clock}
+            theme="bg-gradient-to-br from-amber-50 to-orange-100 text-amber-900 ring-1 ring-amber-100"
+          />
+          <SummaryStat
+            label="60+ Days"
+            value={loading ? '-' : formatCurrency(summary?.aging60plus || 0)}
+            icon={AlertTriangle}
+            theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
+          />
+          <SummaryStat
+            label="Customers"
+            value={loading ? '-' : String(summary?.totalCustomers || 0)}
+            icon={Users}
+            theme="bg-gradient-to-br from-amber-50 to-yellow-100 text-amber-900 ring-1 ring-amber-100"
+          />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Receivables
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {loading ? '-' : formatCurrency(summary?.totalReceivables || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                0-30 Days
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {loading ? '-' : formatCurrency(summary?.aging0to30 || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                30-60 Days
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {loading ? '-' : formatCurrency(summary?.aging30to60 || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                60+ Days
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {loading ? '-' : formatCurrency(summary?.aging60plus || 0)}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600">
-                Total Customers
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {loading ? '-' : summary?.totalCustomers || 0}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Receivables Details</CardTitle>
-              <div className="relative w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search by customer or invoice..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        <ColorCard
+          title="Receivables Details"
+          headerClassName="bg-gradient-to-r from-amber-50 via-orange-50 to-red-50 border-orange-100/50 text-orange-900"
+        >
+          <div className="mb-4">
+            <div className="relative w-full sm:max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search by customer or invoice..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
+              />
             </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Total Amount</TableHead>
-                    <TableHead>Paid</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Aging</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredReceivables.map((item) => (
-                    <TableRow key={item._id}>
-                      <TableCell className="font-medium">{item.customer}</TableCell>
-                      <TableCell>{item.invoice}</TableCell>
-                      <TableCell>{formatDate(item.date)}</TableCell>
-                      <TableCell>{formatCurrency(item.amount)}</TableCell>
-                      <TableCell>{formatCurrency(item.paid)}</TableCell>
-                      <TableCell className="font-medium text-orange-600">
-                        {formatCurrency(item.due)}
-                      </TableCell>
-                      <TableCell>{formatDate(item.dueDate)}</TableCell>
-                      <TableCell>{getAgingBadge(item.aging)}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedReceivable(item);
-                            setPaymentAmount(item.due.toString());
-                            setShowPaymentDialog(true);
-                          }}
-                        >
-                          <DollarSign className="w-4 h-4 mr-1" />
-                          Receive
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredReceivables.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-slate-500">
-                        No receivables found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Receive Payment Dialog */}
-        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Receive Payment</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="bg-slate-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Customer:</span>
-                  <span className="font-medium">{selectedReceivable?.customer}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Invoice:</span>
-                  <span className="font-medium">{selectedReceivable?.invoice}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Total Amount:</span>
-                  <span className="font-medium">
-                    {formatCurrency(selectedReceivable?.amount || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Already Paid:</span>
-                  <span className="font-medium text-green-600">
-                    {formatCurrency(selectedReceivable?.paid || 0)}
-                  </span>
-                </div>
-                <div className="flex justify-between border-t pt-2">
-                  <span className="text-slate-600 font-medium">Outstanding:</span>
-                  <span className="font-bold text-orange-600">
-                    {formatCurrency(selectedReceivable?.due || 0)}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <Label>Payment Amount (PKR)</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={selectedReceivable?.due}
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="Enter amount"
-                />
-                <p className="text-sm text-slate-500 mt-1">
-                  Maximum: {formatCurrency(selectedReceivable?.due || 0)}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowPaymentDialog(false)}
-                  className="flex-1"
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleReceivePayment}
-                  className="flex-1"
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Receive Payment
-                </Button>
-              </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
             </div>
-          </DialogContent>
-        </Dialog>
+          ) : (
+            <>
+              <div className="space-y-3 lg:hidden">
+                {filteredReceivables.map((item) => (
+                  <div
+                    key={item._id}
+                    className="rounded-2xl border border-orange-100/80 bg-gradient-to-br from-white to-orange-50/30 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-orange-900">{item.customer}</p>
+                        <p className="text-sm text-slate-600">{item.invoice}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Due {formatAccountingDate(item.dueDate)}
+                        </p>
+                      </div>
+                      {getAgingBadge(item.aging)}
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Total</p>
+                        <p className="font-semibold">{formatCurrency(item.amount)}</p>
+                      </div>
+                      <div className="rounded-xl bg-emerald-50 px-3 py-2">
+                        <p className="text-xs text-emerald-600">Paid</p>
+                        <p className="font-semibold text-emerald-800">{formatCurrency(item.paid)}</p>
+                      </div>
+                      <div className="rounded-xl bg-orange-50 px-3 py-2">
+                        <p className="text-xs text-orange-600">Due</p>
+                        <p className="font-bold text-orange-800">{formatCurrency(item.due)}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={() => openPayment(item)}
+                        className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-0"
+                      >
+                        <DollarSign className="w-4 h-4 mr-1" />
+                        Receive
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {filteredReceivables.length === 0 && (
+                  <p className="text-center py-8 text-slate-500">No receivables found</p>
+                )}
+              </div>
+
+              <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-orange-100/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gradient-to-r from-amber-50 to-orange-50/80">
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Invoice</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Total Amount</TableHead>
+                      <TableHead>Paid</TableHead>
+                      <TableHead>Due</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Aging</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredReceivables.map((item) => (
+                      <TableRow key={item._id} className="hover:bg-orange-50/20">
+                        <TableCell className="font-medium text-orange-900">
+                          {item.customer}
+                        </TableCell>
+                        <TableCell>{item.invoice}</TableCell>
+                        <TableCell>{formatAccountingDate(item.date)}</TableCell>
+                        <TableCell>{formatCurrency(item.amount)}</TableCell>
+                        <TableCell className="text-emerald-700">{formatCurrency(item.paid)}</TableCell>
+                        <TableCell className="font-semibold text-orange-600">
+                          {formatCurrency(item.due)}
+                        </TableCell>
+                        <TableCell>{formatAccountingDate(item.dueDate)}</TableCell>
+                        <TableCell>{getAgingBadge(item.aging)}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => openPayment(item)}
+                            className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 border-0"
+                          >
+                            <DollarSign className="w-4 h-4 mr-1" />
+                            Receive
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredReceivables.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-slate-500">
+                          No receivables found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </ColorCard>
+
+        <AgingPaymentDialog
+          open={showPaymentDialog}
+          onOpenChange={setShowPaymentDialog}
+          variant="receive"
+          partyLabel="Customer"
+          partyName={selectedReceivable?.customer || ''}
+          referenceLabel="Invoice"
+          referenceValue={selectedReceivable?.invoice || ''}
+          totalAmount={selectedReceivable?.amount || 0}
+          paidAmount={selectedReceivable?.paid || 0}
+          dueAmount={selectedReceivable?.due || 0}
+          amount={paymentAmount}
+          onAmountChange={setPaymentAmount}
+          onSave={handleReceivePayment}
+          saving={saving}
+        />
       </div>
     </MainLayout>
   );
