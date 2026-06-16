@@ -19,15 +19,20 @@ import {
   Wallet,
   Receipt,
   Sparkles,
+  UserCog,
+  History,
   type LucideIcon,
 } from 'lucide-react';
 import { settingsApi } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import { ALL_ROLES, ADMIN_ROLES, canSeeMenuItem, type AppRole } from '@/lib/permissions';
 
 type MenuItem = {
   icon: LucideIcon;
   label: string;
   href: string;
   accent: string;
+  roles?: AppRole[];
 };
 
 type MenuGroup = {
@@ -39,47 +44,157 @@ export const menuGroups: MenuGroup[] = [
   {
     title: 'Overview',
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', accent: 'from-indigo-500 to-violet-600' },
+      {
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+        href: '/dashboard',
+        accent: 'from-indigo-500 to-violet-600',
+        roles: ALL_ROLES,
+      },
     ],
   },
   {
     title: 'Transactions',
     items: [
-      { icon: ShoppingCart, label: 'Sales', href: '/sales', accent: 'from-cyan-500 to-blue-600' },
-      { icon: TrendingDown, label: 'Sales Returns', href: '/sales/returns', accent: 'from-orange-500 to-amber-600' },
-      { icon: Package, label: 'Purchases', href: '/purchases', accent: 'from-blue-500 to-indigo-600' },
-      { icon: TrendingUp, label: 'Purchase Returns', href: '/purchases/returns', accent: 'from-purple-500 to-violet-600' },
+      {
+        icon: ShoppingCart,
+        label: 'Sales',
+        href: '/sales',
+        accent: 'from-cyan-500 to-blue-600',
+        roles: ALL_ROLES,
+      },
+      {
+        icon: TrendingDown,
+        label: 'Sales Returns',
+        href: '/sales/returns',
+        accent: 'from-orange-500 to-amber-600',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: Package,
+        label: 'Purchases',
+        href: '/purchases',
+        accent: 'from-blue-500 to-indigo-600',
+        roles: ALL_ROLES,
+      },
+      {
+        icon: TrendingUp,
+        label: 'Purchase Returns',
+        href: '/purchases/returns',
+        accent: 'from-purple-500 to-violet-600',
+        roles: ADMIN_ROLES,
+      },
     ],
   },
   {
     title: 'Inventory',
     items: [
-      { icon: Package, label: 'Products', href: '/products', accent: 'from-sky-500 to-cyan-600' },
-      { icon: Warehouse, label: 'Stock', href: '/stock', accent: 'from-teal-500 to-emerald-600' },
+      {
+        icon: Package,
+        label: 'Products',
+        href: '/products',
+        accent: 'from-sky-500 to-cyan-600',
+        roles: ALL_ROLES,
+      },
+      {
+        icon: Warehouse,
+        label: 'Stock',
+        href: '/stock',
+        accent: 'from-teal-500 to-emerald-600',
+        roles: ALL_ROLES,
+      },
     ],
   },
   {
     title: 'Contacts',
     items: [
-      { icon: Users, label: 'Customers', href: '/customers', accent: 'from-pink-500 to-rose-600' },
-      { icon: Building2, label: 'Suppliers', href: '/suppliers', accent: 'from-fuchsia-500 to-purple-600' },
+      {
+        icon: Users,
+        label: 'Customers',
+        href: '/customers',
+        accent: 'from-pink-500 to-rose-600',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: Building2,
+        label: 'Suppliers',
+        href: '/suppliers',
+        accent: 'from-fuchsia-500 to-purple-600',
+        roles: ADMIN_ROLES,
+      },
     ],
   },
   {
     title: 'Finance',
     items: [
-      { icon: DollarSign, label: 'Receivables', href: '/receivables', accent: 'from-amber-500 to-orange-600' },
-      { icon: Wallet, label: 'Payables', href: '/payables', accent: 'from-red-500 to-rose-600' },
-      { icon: Receipt, label: 'Expenses', href: '/expenses', accent: 'from-rose-500 to-red-600' },
-      { icon: TrendingUp, label: 'Other Income', href: '/other-income', accent: 'from-emerald-500 to-green-600' },
-      { icon: Wallet, label: 'Owner Management', href: '/investments', accent: 'from-violet-500 to-indigo-600' },
+      {
+        icon: DollarSign,
+        label: 'Receivables',
+        href: '/receivables',
+        accent: 'from-amber-500 to-orange-600',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: Wallet,
+        label: 'Payables',
+        href: '/payables',
+        accent: 'from-red-500 to-rose-600',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: Receipt,
+        label: 'Expenses',
+        href: '/expenses',
+        accent: 'from-rose-500 to-red-600',
+        roles: ALL_ROLES,
+      },
+      {
+        icon: TrendingUp,
+        label: 'Other Income',
+        href: '/other-income',
+        accent: 'from-emerald-500 to-green-600',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: Wallet,
+        label: 'Owner Management',
+        href: '/investments',
+        accent: 'from-violet-500 to-indigo-600',
+        roles: ADMIN_ROLES,
+      },
     ],
   },
   {
     title: 'System',
     items: [
-      { icon: FileText, label: 'Reports', href: '/reports', accent: 'from-slate-500 to-slate-700' },
-      { icon: Settings, label: 'Settings', href: '/settings', accent: 'from-indigo-500 to-blue-600' },
+      {
+        icon: FileText,
+        label: 'Reports',
+        href: '/reports',
+        accent: 'from-slate-500 to-slate-700',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: History,
+        label: 'Activity Log',
+        href: '/activity-logs',
+        accent: 'from-amber-500 to-orange-600',
+        roles: ADMIN_ROLES,
+      },
+      {
+        icon: UserCog,
+        label: 'User Management',
+        href: '/users',
+        accent: 'from-violet-500 to-purple-600',
+        roles: ['superadmin'],
+      },
+      {
+        icon: Settings,
+        label: 'Settings',
+        href: '/settings',
+        accent: 'from-indigo-500 to-blue-600',
+        roles: ADMIN_ROLES,
+      },
     ],
   },
 ];
@@ -91,10 +206,18 @@ const sidebarShellClass =
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  const visibleGroups = menuGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canSeeMenuItem(user?.role, item.roles)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <nav className="flex-1 overflow-y-auto px-3 pb-4">
-      {menuGroups.map((group) => (
+      {visibleGroups.map((group) => (
         <div key={group.title} className="mb-4 last:mb-0">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-indigo-300/50">
             {group.title}

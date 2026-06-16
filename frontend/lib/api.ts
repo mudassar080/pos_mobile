@@ -1,5 +1,11 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const token = localStorage.getItem('pos_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -21,6 +27,7 @@ async function fetchApi<T>(
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
+        ...getAuthHeaders(),
         ...options.headers,
       },
       ...options,
@@ -387,6 +394,47 @@ export const settingsApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+};
+
+// Auth API
+export const authApi = {
+  login: (email: string, password: string) =>
+    fetchApi<{ token: string; user: any }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  me: () => fetchApi<any>('/auth/me'),
+};
+
+// Users API (superadmin)
+export const usersApi = {
+  getAll: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params)}` : '';
+    return fetchApi<any[]>(`/users${query}`);
+  },
+  getById: (id: string) => fetchApi<any>(`/users/${id}`),
+  create: (data: any) =>
+    fetchApi<any>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: any) =>
+    fetchApi<any>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    fetchApi<any>(`/users/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
+// Activity logs API (admin / superadmin)
+export const activityLogsApi = {
+  getAll: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params)}` : '';
+    return fetchApi<any[]>(`/activity-logs${query}`);
+  },
 };
 
 // Health Check

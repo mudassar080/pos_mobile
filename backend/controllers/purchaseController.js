@@ -2,6 +2,7 @@ const Purchase = require('../models/Purchase');
 const PurchaseReturn = require('../models/PurchaseReturn');
 const Product = require('../models/Product');
 const Supplier = require('../models/Supplier');
+const logActivity = require('../utils/logActivity');
 
 const normalizeImei = (value) =>
   value == null || String(value).trim() === '' ? '' : String(value).trim();
@@ -301,6 +302,15 @@ const createPurchase = async (req, res) => {
       lastPurchase: new Date(),
     });
 
+    await logActivity(req, {
+      action: 'create',
+      entity: 'purchase',
+      entityId: purchase._id,
+      entityLabel: purchase.purchaseNumber,
+      description: `Created purchase ${purchase.purchaseNumber} from ${purchase.supplierName}`,
+      metadata: { amount: totalAmount, paid: paidAmount },
+    });
+
     res.status(201).json({
       success: true,
       message: 'Purchase created successfully',
@@ -564,6 +574,14 @@ const updatePurchase = async (req, res) => {
       .populate('supplier', 'name phone email address')
       .populate('items.product', 'name category brand');
 
+    await logActivity(req, {
+      action: 'update',
+      entity: 'purchase',
+      entityId: updated._id,
+      entityLabel: updated.purchaseNumber,
+      description: `Updated purchase ${updated.purchaseNumber}`,
+    });
+
     res.status(200).json({
       success: true,
       message: 'Purchase updated',
@@ -614,6 +632,14 @@ const deletePurchase = async (req, res) => {
     }
 
     await Purchase.findByIdAndDelete(req.params.id);
+
+    await logActivity(req, {
+      action: 'delete',
+      entity: 'purchase',
+      entityId: purchase._id,
+      entityLabel: purchase.purchaseNumber,
+      description: `Deleted purchase ${purchase.purchaseNumber}`,
+    });
 
     res.status(200).json({
       success: true,

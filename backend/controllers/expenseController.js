@@ -1,4 +1,5 @@
 const Expense = require('../models/Expense');
+const logActivity = require('../utils/logActivity');
 
 // @desc    Get all expenses
 // @route   GET /api/expenses
@@ -98,6 +99,15 @@ const createExpense = async (req, res) => {
   try {
     const expense = await Expense.create(req.body);
 
+    await logActivity(req, {
+      action: 'create',
+      entity: 'expense',
+      entityId: expense._id,
+      entityLabel: expense.category || 'Expense',
+      description: `Added expense: ${expense.category} — ${expense.amount}`,
+      metadata: { amount: expense.amount, category: expense.category },
+    });
+
     res.status(201).json({
       success: true,
       message: 'Expense created successfully',
@@ -138,6 +148,14 @@ const updateExpense = async (req, res) => {
       });
     }
 
+    await logActivity(req, {
+      action: 'update',
+      entity: 'expense',
+      entityId: expense._id,
+      entityLabel: expense.category || 'Expense',
+      description: `Updated expense: ${expense.category} — ${expense.amount}`,
+    });
+
     res.status(200).json({
       success: true,
       message: 'Expense updated successfully',
@@ -174,6 +192,14 @@ const deleteExpense = async (req, res) => {
         message: 'Expense not found',
       });
     }
+
+    await logActivity(req, {
+      action: 'delete',
+      entity: 'expense',
+      entityId: expense._id,
+      entityLabel: expense.category || 'Expense',
+      description: `Deleted expense: ${expense.category} — ${expense.amount}`,
+    });
 
     res.status(200).json({
       success: true,

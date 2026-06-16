@@ -1,6 +1,7 @@
 const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
+const logActivity = require('../utils/logActivity');
 
 // @desc    Get all sales
 // @route   GET /api/sales
@@ -187,6 +188,7 @@ const createSale = async (req, res) => {
       paymentMode: paymentMode || 'Cash',
       status,
       notes,
+      createdBy: req.user?._id || null,
     });
 
     // Update product quantities/status and selling price
@@ -219,6 +221,15 @@ const createSale = async (req, res) => {
         lastPurchase: new Date(),
       });
     }
+
+    await logActivity(req, {
+      action: 'create',
+      entity: 'sale',
+      entityId: sale._id,
+      entityLabel: sale.invoiceNumber,
+      description: `Created sale ${sale.invoiceNumber} for ${customerName} (${totalAmount})`,
+      metadata: { amount: totalAmount, paid: paidAmount },
+    });
 
     res.status(201).json({
       success: true,
@@ -309,6 +320,15 @@ const updatePayment = async (req, res) => {
       });
     }
 
+    await logActivity(req, {
+      action: 'payment',
+      entity: 'sale',
+      entityId: sale._id,
+      entityLabel: sale.invoiceNumber,
+      description: `Recorded payment of ${amount} on sale ${sale.invoiceNumber}`,
+      metadata: { amount, paymentMode },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Payment updated successfully',
@@ -374,6 +394,14 @@ const cancelSale = async (req, res) => {
 
     sale.status = 'cancelled';
     await sale.save();
+
+    await logActivity(req, {
+      action: 'cancel',
+      entity: 'sale',
+      entityId: sale._id,
+      entityLabel: sale.invoiceNumber,
+      description: `Cancelled sale ${sale.invoiceNumber}`,
+    });
 
     res.status(200).json({
       success: true,
@@ -730,6 +758,14 @@ const deleteSale = async (req, res) => {
 
     // Delete the sale from database
     await Sale.findByIdAndDelete(req.params.id);
+
+    await logActivity(req, {
+      action: 'delete',
+      entity: 'sale',
+      entityId: sale._id,
+      entityLabel: sale.invoiceNumber,
+      description: `Deleted sale ${sale.invoiceNumber}`,
+    });
 
     res.status(200).json({
       success: true,

@@ -124,8 +124,9 @@ export default function LoginPage() {
               </Button>
 
               <div className="rounded-2xl bg-slate-50 px-4 py-3 text-center ring-1 ring-slate-100">
-                <p className="text-xs font-medium text-slate-500">Demo credentials</p>
+                <p className="text-xs font-medium text-slate-500">Default superadmin</p>
                 <p className="mt-1 font-mono text-xs text-slate-700">admin@pos.com / admin123</p>
+                <p className="mt-1 text-[10px] text-slate-400">Created on first server start if no users exist</p>
               </div>
             </form>
           </div>

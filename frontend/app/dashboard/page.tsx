@@ -55,6 +55,7 @@ import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import moment from 'moment';
 import { cn } from '@/lib/utils';
+import { usePermissions } from '@/hooks/use-permissions';
 
 type CardTheme = {
   bg: string;
@@ -246,6 +247,7 @@ function DashboardSkeleton() {
 }
 
 export default function DashboardPage() {
+  const { isStaff } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [salesSummary, setSalesSummary] = useState<any>(null);
   const [customerSummary, setCustomerSummary] = useState<any>(null);
@@ -391,7 +393,9 @@ export default function DashboardPage() {
               </div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Dashboard</h1>
               <p className="text-sm sm:text-base text-indigo-100 max-w-md">
-                Track sales, stock, profits, and cash flow in real time
+                {isStaff
+                  ? 'Your daily sales, stock, purchases, and expenses'
+                  : 'Track sales, stock, profits, and cash flow in real time'}
               </p>
               {hasDateFilter && (
                 <span className="inline-flex items-center rounded-full bg-amber-400/20 px-3 py-1 text-xs font-semibold text-amber-100 ring-1 ring-amber-300/30">
@@ -485,9 +489,18 @@ export default function DashboardPage() {
               <p className="mt-1 text-2xl sm:text-3xl font-bold">{formatCurrency(todaySales)}</p>
             </div>
             <div className="rounded-2xl bg-white/15 p-4 backdrop-blur-md ring-1 ring-white/20">
-              <p className="text-xs font-medium text-indigo-100 uppercase tracking-wide">Net Profit</p>
-              <p className={cn('mt-1 text-2xl sm:text-3xl font-bold', netProfit >= 0 ? 'text-emerald-200' : 'text-rose-200')}>
-                {formatCurrency(netProfit)}
+              <p className="text-xs font-medium text-indigo-100 uppercase tracking-wide">
+                {isStaff ? 'Stock Value' : 'Net Profit'}
+              </p>
+              <p
+                className={cn(
+                  'mt-1 text-2xl sm:text-3xl font-bold',
+                  isStaff ? 'text-white' : netProfit >= 0 ? 'text-emerald-200' : 'text-rose-200'
+                )}
+              >
+                {isStaff
+                  ? formatCurrency(stockSummary?.totalValue || 0)
+                  : formatCurrency(netProfit)}
               </p>
             </div>
           </div>
@@ -497,10 +510,19 @@ export default function DashboardPage() {
         <section className="space-y-3 sm:space-y-4">
           <SectionHeading
             title="Key Metrics"
-            description="Sales, stock, and profitability at a glance"
+            description={
+              isStaff
+                ? 'Sales, stock, purchases, and expenses'
+                : 'Sales, stock, and profitability at a glance'
+            }
             accent="bg-gradient-to-b from-cyan-400 to-blue-600"
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+          <div
+            className={cn(
+              'grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4',
+              isStaff ? 'xl:grid-cols-4' : 'xl:grid-cols-5'
+            )}
+          >
             <StatCard
               href="/sales"
               title={hasDateFilter ? 'Selected Sales' : "Today's Sales"}
@@ -509,22 +531,24 @@ export default function DashboardPage() {
               icon={ShoppingCart}
               theme="cyan"
             />
-            <StatCard
-              href="/sales"
-              title={hasDateFilter ? 'Range Sales' : 'Monthly Sales'}
-              value={formatCurrency(
-                hasDateFilter
-                  ? salesSummary?.totalSales || 0
-                  : salesSummary?.monthSales || salesSummary?.totalSales || 0
-              )}
-              subtitle={`${
-                hasDateFilter
-                  ? salesSummary?.totalCount || 0
-                  : salesSummary?.monthCount || salesSummary?.totalCount || 0
-              } transactions`}
-              icon={DollarSign}
-              theme="emerald"
-            />
+            {!isStaff && (
+              <StatCard
+                href="/sales"
+                title={hasDateFilter ? 'Range Sales' : 'Monthly Sales'}
+                value={formatCurrency(
+                  hasDateFilter
+                    ? salesSummary?.totalSales || 0
+                    : salesSummary?.monthSales || salesSummary?.totalSales || 0
+                )}
+                subtitle={`${
+                  hasDateFilter
+                    ? salesSummary?.totalCount || 0
+                    : salesSummary?.monthCount || salesSummary?.totalCount || 0
+                } transactions`}
+                icon={DollarSign}
+                theme="emerald"
+              />
+            )}
             <StatCard
               href="/stock"
               title="Stock Value"
@@ -537,26 +561,57 @@ export default function DashboardPage() {
               icon={Package}
               theme="blue"
             />
-            <StatCard
-              href="/sales"
-              title="Gross Profit"
-              value={formatCurrency(grossProfit)}
-              subtitle="Selling price - Purchase price"
-              icon={TrendingUp}
-              theme={grossProfit >= 0 ? 'green' : 'red'}
-            />
-            <StatCard
-              href="/sales"
-              title="Net Profit"
-              value={formatCurrency(netProfit)}
-              subtitle={`Gross: ${formatCurrency(grossProfit)} + Other: ${formatCurrency(otherIncomeForProfit)} - Exp: ${formatCurrency(expenseForProfit)}`}
-              icon={Banknote}
-              theme={netProfit >= 0 ? 'violet' : 'red'}
-            />
+            {!isStaff && (
+              <>
+                <StatCard
+                  href="/sales"
+                  title="Gross Profit"
+                  value={formatCurrency(grossProfit)}
+                  subtitle="Selling price - Purchase price"
+                  icon={TrendingUp}
+                  theme={grossProfit >= 0 ? 'green' : 'red'}
+                />
+                <StatCard
+                  href="/sales"
+                  title="Net Profit"
+                  value={formatCurrency(netProfit)}
+                  subtitle={`Gross: ${formatCurrency(grossProfit)} + Other: ${formatCurrency(otherIncomeForProfit)} - Exp: ${formatCurrency(expenseForProfit)}`}
+                  icon={Banknote}
+                  theme={netProfit >= 0 ? 'violet' : 'red'}
+                />
+              </>
+            )}
+            {isStaff && (
+              <>
+                <StatCard
+                  href="/purchases"
+                  title={hasDateFilter ? 'Range Purchase' : 'Today Purchase'}
+                  value={formatCurrency(
+                    hasDateFilter
+                      ? purchaseSummary?.totalPurchases || 0
+                      : purchaseSummary?.todayPurchases || 0
+                  )}
+                  subtitle={`${hasDateFilter ? purchaseSummary?.count || 0 : purchaseSummary?.todayCount || 0} purchases`}
+                  icon={ShoppingCart}
+                  theme="indigo"
+                />
+                <StatCard
+                  href="/expenses"
+                  title={hasDateFilter ? 'Range Expense' : 'Today Expense'}
+                  value={formatCurrency(
+                    hasDateFilter ? expenseSummary?.totalExpenses || 0 : expenseSummary?.todayExpenses || 0
+                  )}
+                  subtitle={`${hasDateFilter ? expenseSummary?.totalCount || 0 : expenseSummary?.todayCount || 0} entries`}
+                  icon={Receipt}
+                  theme="rose"
+                />
+              </>
+            )}
           </div>
         </section>
 
         {/* Daily Activity */}
+        {!isStaff && (
         <section className="space-y-3 sm:space-y-4">
           <SectionHeading
             title={hasDateFilter ? 'Activity in Range' : "Today's Activity"}
@@ -628,8 +683,10 @@ export default function DashboardPage() {
             />
           </div>
         </section>
+        )}
 
         {/* Cash Flow */}
+        {!isStaff && (
         <section className="space-y-3 sm:space-y-4">
           <SectionHeading
             title="Cash Flow"
@@ -680,9 +737,11 @@ export default function DashboardPage() {
             />
           </div>
         </section>
+        )}
 
         {/* Charts */}
-        <section className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
+        <section className={cn('grid grid-cols-1 gap-4 sm:gap-6', !isStaff && 'xl:grid-cols-3')}>
+          {!isStaff && (
           <ColorCard
             className="xl:col-span-2 shadow-indigo-100/50"
             title={hasDateFilter ? 'Sales Trend (Selected Range)' : 'Sales Trend (Last 7 Days)'}
@@ -740,9 +799,10 @@ export default function DashboardPage() {
                 </div>
               )}
           </ColorCard>
+          )}
 
           <ColorCard
-            className="shadow-fuchsia-100/50"
+            className={cn('shadow-fuchsia-100/50', isStaff && 'max-w-xl')}
             title="Stock by Category"
             headerClassName="bg-gradient-to-r from-fuchsia-50 via-pink-50 to-rose-50 border-fuchsia-100/50 text-fuchsia-900"
           >

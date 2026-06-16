@@ -1,20 +1,28 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { Sidebar } from './sidebar';
 import { Header } from './header';
+import { canAccessPath } from '@/lib/permissions';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/login');
     }
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (!isLoading && user && !canAccessPath(user.role, pathname)) {
+      router.replace('/dashboard');
+    }
+  }, [user, isLoading, pathname, router]);
 
   if (isLoading) {
     return (

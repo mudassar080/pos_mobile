@@ -2,36 +2,34 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const ensureDefaultSuperAdmin = require('./utils/ensureDefaultSuperAdmin');
+const { protect } = require('./middleware/auth');
 
-// Load environment variables
 dotenv.config();
-
-// Connect to database
-connectDB();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api/products', require('./routes/products'));
-app.use('/api/customers', require('./routes/customers'));
-app.use('/api/suppliers', require('./routes/suppliers'));
-app.use('/api/sales', require('./routes/sales'));
-app.use('/api/sale-returns', require('./routes/saleReturns'));
-app.use('/api/purchases', require('./routes/purchases'));
-app.use('/api/purchase-returns', require('./routes/purchaseReturns'));
-app.use('/api/expenses', require('./routes/expenses'));
-app.use('/api/owners', require('./routes/owners'));
-app.use('/api/investments', require('./routes/investments'));
-app.use('/api/other-income', require('./routes/otherIncome'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/settings', require('./routes/settings'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/products', protect, require('./routes/products'));
+app.use('/api/customers', protect, require('./routes/customers'));
+app.use('/api/suppliers', protect, require('./routes/suppliers'));
+app.use('/api/sales', protect, require('./routes/sales'));
+app.use('/api/sale-returns', protect, require('./routes/saleReturns'));
+app.use('/api/purchases', protect, require('./routes/purchases'));
+app.use('/api/purchase-returns', protect, require('./routes/purchaseReturns'));
+app.use('/api/expenses', protect, require('./routes/expenses'));
+app.use('/api/owners', protect, require('./routes/owners'));
+app.use('/api/investments', protect, require('./routes/investments'));
+app.use('/api/other-income', protect, require('./routes/otherIncome'));
+app.use('/api/dashboard', protect, require('./routes/dashboard'));
+app.use('/api/settings', protect, require('./routes/settings'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/activity-logs', require('./routes/activityLogs'));
 
-// Health check route
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -40,7 +38,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -48,7 +45,6 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
@@ -58,8 +54,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const startServer = async () => {
+  await connectDB();
+  await ensureDefaultSuperAdmin();
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+};
+
+startServer();

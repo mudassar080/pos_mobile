@@ -17,6 +17,7 @@ import { Search, Loader2, Trash2, ShoppingCart, DollarSign, Wallet, Receipt } fr
 import Link from 'next/link';
 import { salesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -31,6 +32,7 @@ import {
 
 export default function SalesPage() {
   const { toast } = useToast();
+  const { canEdit, canDelete } = usePermissions();
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -191,20 +193,27 @@ export default function SalesPage() {
                         {sale.paymentMode}
                       </Badge>
                       <div className="flex items-center gap-1">
-                        <SaleActionLinks saleId={sale._id} status={sale.status} size="icon" />
-                        <Button
-                          variant="ghost"
+                        <SaleActionLinks
+                          saleId={sale._id}
+                          status={sale.status}
                           size="icon"
-                          onClick={() => handleDelete(sale)}
-                          disabled={deletingId === sale._id}
-                          className="rounded-lg text-red-600 hover:bg-red-50"
-                        >
-                          {deletingId === sale._id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </Button>
+                          allowEdit={canEdit}
+                        />
+                        {canDelete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(sale)}
+                            disabled={deletingId === sale._id}
+                            className="rounded-lg text-red-600 hover:bg-red-50"
+                          >
+                            {deletingId === sale._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -260,20 +269,26 @@ export default function SalesPage() {
                         <TableCell>{getStatusBadge(sale.status)}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <SaleActionLinks saleId={sale._id} status={sale.status} />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(sale)}
-                              disabled={deletingId === sale._id}
-                              className="text-red-600 hover:bg-red-50 rounded-lg"
-                            >
-                              {deletingId === sale._id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </Button>
+                            <SaleActionLinks
+                              saleId={sale._id}
+                              status={sale.status}
+                              allowEdit={canEdit}
+                            />
+                            {canDelete && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(sale)}
+                                disabled={deletingId === sale._id}
+                                className="text-red-600 hover:bg-red-50 rounded-lg"
+                              >
+                                {deletingId === sale._id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

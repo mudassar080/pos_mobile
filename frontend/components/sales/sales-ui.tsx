@@ -150,12 +150,14 @@ export function SaleActionLinks({
   saleId,
   status,
   size = 'sm',
+  allowEdit = true,
 }: {
   saleId: string;
   status: string;
   size?: 'sm' | 'icon';
+  allowEdit?: boolean;
 }) {
-  const canEdit = status !== 'cancelled' && status !== 'paid';
+  const canEdit = allowEdit && status !== 'cancelled' && status !== 'paid';
 
   return (
     <div className="flex items-center gap-1">

@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { purchasesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -65,6 +66,7 @@ import {
 
 export default function PurchasesPage() {
   const { toast } = useToast();
+  const { canEdit, canDelete } = usePermissions();
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -229,7 +231,7 @@ export default function PurchasesPage() {
                               <Eye className="mr-2 h-4 w-4" />
                               View details
                             </DropdownMenuItem>
-                            {purchase.status !== 'cancelled' && (
+                            {canEdit && purchase.status !== 'cancelled' && (
                               <DropdownMenuItem asChild>
                                 <Link href={`/purchases/${purchase._id}/edit`}>
                                   <Pencil className="mr-2 h-4 w-4" />
@@ -237,16 +239,20 @@ export default function PurchasesPage() {
                                 </Link>
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              onSelect={() =>
-                                setDeleteTarget({ id: purchase._id, num: purchase.purchaseNumber })
-                              }
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
+                            {canDelete && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onSelect={() =>
+                                    setDeleteTarget({ id: purchase._id, num: purchase.purchaseNumber })
+                                  }
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -307,32 +313,37 @@ export default function PurchasesPage() {
                                   <Eye className="mr-2 h-4 w-4" />
                                   View details
                                 </DropdownMenuItem>
-                                {purchase.status !== 'cancelled' ? (
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/purchases/${purchase._id}/edit`}>
-                                      <Pencil className="mr-2 h-4 w-4" />
-                                      Edit purchase
-                                    </Link>
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem disabled>
-                                    <Pencil className="mr-2 h-4 w-4 opacity-50" />
-                                    Edit (cancelled)
-                                  </DropdownMenuItem>
+                                {canEdit &&
+                                  (purchase.status !== 'cancelled' ? (
+                                    <DropdownMenuItem asChild>
+                                      <Link href={`/purchases/${purchase._id}/edit`}>
+                                        <Pencil className="mr-2 h-4 w-4" />
+                                        Edit purchase
+                                      </Link>
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem disabled>
+                                      <Pencil className="mr-2 h-4 w-4 opacity-50" />
+                                      Edit (cancelled)
+                                    </DropdownMenuItem>
+                                  ))}
+                                {canDelete && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600 focus:text-red-600"
+                                      onSelect={() =>
+                                        setDeleteTarget({
+                                          id: purchase._id,
+                                          num: purchase.purchaseNumber,
+                                        })
+                                      }
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-red-600 focus:text-red-600"
-                                  onSelect={() =>
-                                    setDeleteTarget({
-                                      id: purchase._id,
-                                      num: purchase.purchaseNumber,
-                                    })
-                                  }
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -444,7 +455,7 @@ export default function PurchasesPage() {
                       <p className="text-sm text-slate-500">No payment history available</p>
                     )}
                   </div>
-                  {detailsPurchase.status !== 'cancelled' && (
+                  {canEdit && detailsPurchase.status !== 'cancelled' && (
                     <Link href={`/purchases/${detailsPurchase._id}/edit`}>
                       <Button className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border-0">
                         <Pencil className="w-4 h-4 mr-2" />

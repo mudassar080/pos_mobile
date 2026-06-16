@@ -1,4 +1,5 @@
 const Product = require('../models/Product');
+const logActivity = require('../utils/logActivity');
 
 // @desc    Get all products
 // @route   GET /api/products
@@ -113,6 +114,14 @@ const createProduct = async (req, res) => {
   try {
     const product = await Product.create(req.body);
 
+    await logActivity(req, {
+      action: 'create',
+      entity: 'product',
+      entityId: product._id,
+      entityLabel: product.name,
+      description: `Added product "${product.name}"`,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Product created successfully',
@@ -163,6 +172,14 @@ const updateProduct = async (req, res) => {
       });
     }
 
+    await logActivity(req, {
+      action: 'update',
+      entity: 'product',
+      entityId: product._id,
+      entityLabel: product.name,
+      description: `Updated product "${product.name}"`,
+    });
+
     res.status(200).json({
       success: true,
       message: 'Product updated successfully',
@@ -209,6 +226,14 @@ const deleteProduct = async (req, res) => {
         message: 'Product not found',
       });
     }
+
+    await logActivity(req, {
+      action: 'delete',
+      entity: 'product',
+      entityId: product._id,
+      entityLabel: product.name,
+      description: `Deleted product "${product.name}"`,
+    });
 
     res.status(200).json({
       success: true,
@@ -303,6 +328,15 @@ const updateStock = async (req, res) => {
     }
 
     await product.save();
+
+    await logActivity(req, {
+      action: 'stock_update',
+      entity: 'product',
+      entityId: product._id,
+      entityLabel: product.name,
+      description: `Stock ${operation}: ${quantity} for "${product.name}" (now ${product.quantity})`,
+      metadata: { operation, quantity, newQuantity: product.quantity },
+    });
 
     res.status(200).json({
       success: true,

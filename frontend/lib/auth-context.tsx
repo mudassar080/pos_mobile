@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { authApi } from '@/lib/api';
 
 interface User {
   id: string;
@@ -9,6 +10,7 @@ interface User {
   name: string;
   role: string;
   shop_id: string;
+  isActive?: boolean;
 }
 
 interface AuthContextType {
@@ -25,33 +27,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem('pos_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+  const persistSession = useCallback((token: string, sessionUser: User) => {
+    localStorage.setItem('pos_token', token);
+    localStorage.setItem('pos_user', JSON.stringify(sessionUser));
+    setUser(sessionUser);
   }, []);
 
+  const clearSession = useCallback(() => {
+    localStorage.removeItem('pos_token');
+    localStorage.removeItem('pos_user');
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      const token = localStorage.getItem('pos_token');
+      const storedUser = localStorage.getItem('pos_user');
+
+      if (!token) {
+        if (storedUser) localStorage.removeItem('pos_user');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await authApi.me();
+        if (response.success && response.data) {
+          const u = response.data;
+          const sessionUser: User = {
+            id: u.id || u._id,
+            email: u.email,
+            name: u.name,
+            role: u.role,
+            shop_id: '1',
+            isActive: u.isActive,
+          };
+          persistSession(token, sessionUser);
+        } else {
+          clearSession();
+        }
+      } catch {
+        clearSession();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    bootstrap();
+  }, [clearSession, persistSession]);
+
   const login = async (email: string, password: string): Promise<boolean> => {
-    if (email === 'admin@pos.com' && password === 'admin123') {
-      const mockUser: User = {
-        id: '1',
-        email: 'admin@pos.com',
-        name: 'Admin User',
-        role: 'admin',
-        shop_id: '1'
-      };
-      setUser(mockUser);
-      localStorage.setItem('pos_user', JSON.stringify(mockUser));
-      return true;
+    try {
+      const response = await authApi.login(email, password);
+      if (response.success && response.data?.token && response.data?.user) {
+        const u = response.data.user;
+        const sessionUser: User = {
+          id: u.id || u._id,
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          shop_id: u.shop_id || '1',
+          isActive: u.isActive,
+        };
+        persistSession(response.data.token, sessionUser);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('pos_user');
+    clearSession();
     router.push('/login');
   };
 

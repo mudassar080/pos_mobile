@@ -38,6 +38,7 @@ import {
 import { formatCurrency } from '@/utils/constant';
 import { productsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/use-permissions';
 import {
   ColorCard,
   NewProductButton,
@@ -72,6 +73,7 @@ function ProfitIndicator({ profit }: { profit: number | null }) {
 
 export default function ProductsPage() {
   const { toast } = useToast();
+  const { canEdit, canDelete } = usePermissions();
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,26 +345,32 @@ export default function ProductsPage() {
                           {product.color && `Color: ${product.color}`}
                         </p>
                       )}
-                      <div className="mt-3 flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-xl text-cyan-700 hover:bg-cyan-50"
-                          onClick={() => handleOpenEditDialog(product)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-xl text-red-600 hover:bg-red-50"
-                          onClick={() =>
-                            setDeleteTarget({ id: product._id, name: product.name })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      {(canEdit || canDelete) && (
+                        <div className="mt-3 flex items-center justify-end gap-1">
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-xl text-cyan-700 hover:bg-cyan-50"
+                              onClick={() => handleOpenEditDialog(product)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-xl text-red-600 hover:bg-red-50"
+                              onClick={() =>
+                                setDeleteTarget({ id: product._id, name: product.name })
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -384,7 +392,7 @@ export default function ProductsPage() {
                       <TableHead>Color</TableHead>
                       <TableHead>Purchase Price</TableHead>
                       <TableHead>Selling Price</TableHead>
-                      <TableHead>Actions</TableHead>
+                      {(canEdit || canDelete) && <TableHead>Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -427,34 +435,40 @@ export default function ProductsPage() {
                           <TableCell className="font-medium text-teal-700">
                             {product.sellingPrice ? formatCurrency(product.sellingPrice) : '—'}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-xl text-cyan-700 hover:bg-cyan-50"
-                                onClick={() => handleOpenEditDialog(product)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-xl text-red-600 hover:bg-red-50"
-                                onClick={() =>
-                                  setDeleteTarget({ id: product._id, name: product.name })
-                                }
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                          {(canEdit || canDelete) && (
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                {canEdit && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-xl text-cyan-700 hover:bg-cyan-50"
+                                    onClick={() => handleOpenEditDialog(product)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canDelete && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-xl text-red-600 hover:bg-red-50"
+                                    onClick={() =>
+                                      setDeleteTarget({ id: product._id, name: product.name })
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
                         </TableRow>
                       );
                     })}
                     {filteredProducts.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-slate-500">
+                        <TableCell colSpan={canEdit || canDelete ? 10 : 9} className="text-center py-8 text-slate-500">
                           No products found
                         </TableCell>
                       </TableRow>

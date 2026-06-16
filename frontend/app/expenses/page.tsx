@@ -32,6 +32,7 @@ import {
   ExpenseFormDialog,
   type ExpenseFormData,
 } from '@/components/expenses/expense-form-dialog';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const defaultForm = (): ExpenseFormData => ({
   category: '',
@@ -43,6 +44,7 @@ const defaultForm = (): ExpenseFormData => ({
 
 export default function ExpensesPage() {
   const { toast } = useToast();
+  const { isFullAccess } = usePermissions();
   const [expenses, setExpenses] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -134,16 +136,18 @@ export default function ExpensesPage() {
           badge="Money Out"
           gradient={EXPENSE_GRADIENT}
           actions={
-            <Link href="/other-income">
-              <Button
-                variant="secondary"
-                size="lg"
-                className="rounded-xl bg-white/15 text-white hover:bg-white/25 border-0 w-full sm:w-auto"
-              >
-                Other Income
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            isFullAccess ? (
+              <Link href="/other-income">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="rounded-xl bg-white/15 text-white hover:bg-white/25 border-0 w-full sm:w-auto"
+                >
+                  Other Income
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            ) : undefined
           }
         />
 

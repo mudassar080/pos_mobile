@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Pencil, Trash2, User, Calendar, CreditCard, FileText } from 'lucide-react';
 import { salesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -31,6 +32,7 @@ export default function SaleViewPage() {
   const router = useRouter();
   const saleId = params.id as string;
   const { toast } = useToast();
+  const { canEdit, canDelete } = usePermissions();
   const [sale, setSale] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -98,7 +100,7 @@ export default function SaleViewPage() {
   if (!sale) return null;
 
   const balance = Math.max(0, (sale.amount || 0) - (sale.paid || 0));
-  const canEdit = sale.status !== 'cancelled' && sale.status !== 'paid';
+  const showEdit = canEdit && sale.status !== 'cancelled' && sale.status !== 'paid';
   const paymentHistory = [...(sale.paymentHistory || [])].sort(
     (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -117,31 +119,35 @@ export default function SaleViewPage() {
           }
           backHref="/sales"
           actions={
-            <>
-              {canEdit && (
-                <Link href={`/sales/${saleId}/edit`}>
-                  <Button className="rounded-xl bg-white text-indigo-700 hover:bg-indigo-50 border-0 shadow-md">
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Edit Payment
-                  </Button>
-                </Link>
-              )}
-              <Button
-                variant="secondary"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="rounded-xl bg-red-500/20 text-white hover:bg-red-500/30 border-0"
-              >
-                {deleting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete
-                  </>
+            (showEdit || canDelete) ? (
+              <>
+                {showEdit && (
+                  <Link href={`/sales/${saleId}/edit`}>
+                    <Button className="rounded-xl bg-white text-indigo-700 hover:bg-indigo-50 border-0 shadow-md">
+                      <Pencil className="w-4 h-4 mr-2" />
+                      Edit Payment
+                    </Button>
+                  </Link>
                 )}
-              </Button>
-            </>
+                {canDelete && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="rounded-xl bg-red-500/20 text-white hover:bg-red-500/30 border-0"
+                  >
+                    {deleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </>
+                    )}
+                  </Button>
+                )}
+              </>
+            ) : undefined
           }
         />
 
