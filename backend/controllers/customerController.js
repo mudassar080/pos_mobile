@@ -1,15 +1,18 @@
 const Customer = require('../models/Customer');
 const Supplier = require('../models/Supplier');
 const Sale = require('../models/Sale');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all customers
 // @route   GET /api/customers
 // @access  Public
 const getCustomers = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       isActive,
       hasOutstanding,
@@ -35,14 +38,13 @@ const getCustomers = async (req, res) => {
       query.outstanding = { $gt: 0 };
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
     const customers = await Customer.find(query)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(limit)
       .populate('linkedSupplier', 'name phone outstanding');
 
     const total = await Customer.countDocuments(query);
@@ -50,12 +52,7 @@ const getCustomers = async (req, res) => {
     res.status(200).json({
       success: true,
       data: customers,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

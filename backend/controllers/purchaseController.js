@@ -3,6 +3,7 @@ const PurchaseReturn = require('../models/PurchaseReturn');
 const Product = require('../models/Product');
 const Supplier = require('../models/Supplier');
 const logActivity = require('../utils/logActivity');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 const normalizeImei = (value) =>
   value == null || String(value).trim() === '' ? '' : String(value).trim();
@@ -128,9 +129,11 @@ async function buildPreparedItems(items) {
 // @access  Public
 const getPurchases = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       supplier,
       status,
@@ -163,7 +166,6 @@ const getPurchases = async (req, res) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
@@ -172,19 +174,14 @@ const getPurchases = async (req, res) => {
       .populate('items.product', 'name category brand model purchasePrice lastPurchasePrice')
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
 
     const total = await Purchase.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: purchases,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({
@@ -759,25 +756,41 @@ const getPurchaseSummary = async (req, res) => {
 // @access  Public
 const getPayables = async (req, res) => {
   try {
-    const { sortBy = 'date', sortOrder = 'desc' } = req.query;
+    const paging = parsePagination(req, res);
+    if (!paging) return;
 
-    // Get purchases with balance > 0 (unpaid or partially paid)
+    const { page, limit, skip } = paging;
+    const {
+      sortBy = 'date',
+      sortOrder = 'desc',
+      search,
+    } = req.query;
+
+    const query = {
+      balance: { $gt: 0 },
+      status: { $nin: ['paid', 'cancelled'] },
+    };
+
+    if (search) {
+      query.$or = [
+        { purchaseNumber: { $regex: search, $options: 'i' } },
+        { supplierName: { $regex: search, $options: 'i' } },
+      ];
+    }
+
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    const payables = await Purchase.find({
-      balance: { $gt: 0 },
-      status: { $nin: ['paid', 'cancelled'] },
-    })
-      .populate('supplier', 'name phone')
-      .sort(sort);
+    const [purchases, total] = await Promise.all([
+      Purchase.find(query).populate('supplier', 'name phone').sort(sort).skip(skip).limit(limit),
+      Purchase.countDocuments(query),
+    ]);
 
-    // Calculate aging for each payable
     const now = new Date();
-    const payablesWithAging = payables.map((purchase) => {
+    const mapPayable = (purchase) => {
       const purchaseDate = new Date(purchase.date);
       const daysDiff = Math.floor((now - purchaseDate) / (1000 * 60 * 60 * 24));
-      
+
       let aging = '0-30 days';
       if (daysDiff > 60) {
         aging = '60+ days';
@@ -785,7 +798,6 @@ const getPayables = async (req, res) => {
         aging = '30-60 days';
       }
 
-      // Calculate due date (30 days from purchase date)
       const dueDate = new Date(purchaseDate);
       dueDate.setDate(dueDate.getDate() + 30);
 
@@ -798,22 +810,28 @@ const getPayables = async (req, res) => {
         amount: purchase.amount,
         paid: purchase.paid,
         due: purchase.balance,
-        dueDate: dueDate,
+        dueDate,
         aging,
         daysDiff,
       };
-    });
+    };
 
-    // Calculate summary
-    const totalPayables = payablesWithAging.reduce((sum, p) => sum + p.due, 0);
-    const totalPurchased = payablesWithAging.reduce((sum, p) => sum + p.amount, 0);
-    const aging0to30 = payablesWithAging
+    const payablesWithAging = purchases.map(mapPayable);
+
+    const allForSummary = await Purchase.find(query).select(
+      'date amount paid balance supplierName purchaseNumber supplier'
+    );
+    const summaryRows = allForSummary.map((purchase) => mapPayable(purchase));
+
+    const totalPayables = summaryRows.reduce((sum, p) => sum + p.due, 0);
+    const totalPurchased = summaryRows.reduce((sum, p) => sum + p.amount, 0);
+    const aging0to30 = summaryRows
       .filter((p) => p.aging === '0-30 days')
       .reduce((sum, p) => sum + p.due, 0);
-    const aging30to60 = payablesWithAging
+    const aging30to60 = summaryRows
       .filter((p) => p.aging === '30-60 days')
       .reduce((sum, p) => sum + p.due, 0);
-    const aging60plus = payablesWithAging
+    const aging60plus = summaryRows
       .filter((p) => p.aging === '60+ days')
       .reduce((sum, p) => sum + p.due, 0);
 
@@ -826,8 +844,9 @@ const getPayables = async (req, res) => {
         aging0to30,
         aging30to60,
         aging60plus,
-        totalSuppliers: payablesWithAging.length,
+        totalSuppliers: summaryRows.length,
       },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

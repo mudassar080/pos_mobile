@@ -1,13 +1,16 @@
 const Investment = require('../models/Investment');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all investments
 // @route   GET /api/investments
 // @access  Public
 const getInvestments = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       type,
       owner,
       startDate,
@@ -32,7 +35,6 @@ const getInvestments = async (req, res) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
@@ -40,19 +42,14 @@ const getInvestments = async (req, res) => {
       .populate('owner', 'name phone')
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
 
     const total = await Investment.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: investments,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

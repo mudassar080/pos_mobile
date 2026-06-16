@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const logActivity = require('../utils/logActivity');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 /** Roles that can be assigned via the app (superadmin is bootstrap-only). */
 const APP_ASSIGNABLE_ROLES = ['admin', 'staff'];
@@ -17,6 +18,10 @@ const rejectSuperadminAssignment = (role) =>
 // @access  Superadmin
 const getUsers = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const { search, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
     const query = {};
@@ -30,11 +35,15 @@ const getUsers = async (req, res) => {
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    const users = await User.find(query).select('-password').sort(sort);
+    const [users, total] = await Promise.all([
+      User.find(query).select('-password').sort(sort).skip(skip).limit(limit),
+      User.countDocuments(query),
+    ]);
 
     res.status(200).json({
       success: true,
       data: users,
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

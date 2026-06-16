@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, AlertCircle, Package, DollarSign, RotateCcw, ShoppingBag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { purchaseReturnsApi, purchasesApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, REFUND_METHODS } from '@/utils/constant';
 import { Combobox } from '@/components/ui/combobox';
@@ -58,7 +59,7 @@ export default function NewPurchaseReturnPage() {
   const fetchPurchases = async () => {
     try {
       setLoadingPurchases(true);
-      const response = await purchasesApi.getAll({ limit: '300' });
+      const response = await purchasesApi.getAll(paginatedParams(300));
       if (response.success && response.data) {
         setPurchases(response.data.filter((p: any) => p.status !== 'cancelled'));
       }

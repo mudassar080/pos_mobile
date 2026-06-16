@@ -3,15 +3,18 @@ const Purchase = require('../models/Purchase');
 const Product = require('../models/Product');
 const Supplier = require('../models/Supplier');
 const Customer = require('../models/Customer');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all purchase returns
 // @route   GET /api/purchase-returns
 // @access  Public
 const getPurchaseReturns = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       supplier,
       status,
@@ -37,14 +40,13 @@ const getPurchaseReturns = async (req, res) => {
       query.status = status;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
     const returns = await PurchaseReturn.find(query)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(limit)
       .populate('supplier', 'name phone')
       .populate('purchase', 'purchaseNumber');
 
@@ -53,12 +55,7 @@ const getPurchaseReturns = async (req, res) => {
     res.status(200).json({
       success: true,
       data: returns,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

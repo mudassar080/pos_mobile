@@ -41,6 +41,7 @@ import {
   purchasesApi,
   salesApi,
 } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/utils/constant';
 import { useToast } from '@/hooks/use-toast';
@@ -364,7 +365,7 @@ export default function ReportsPage() {
     setLoading(true);
 
     try {
-      const params: Record<string, string> = { limit: '5000' };
+      const params: Record<string, string> = { ...paginatedParams(5000) };
 
       if (fromDate) {
         params.startDate = moment(fromDate, 'YYYY-MM-DD').startOf('day').toISOString();
@@ -385,9 +386,7 @@ export default function ReportsPage() {
       } else if (selectedField.api === 'other-income') {
         response = await otherIncomeApi.getAll(params);
       } else {
-        response = await productsApi.getAll({
-          limit: '5000',
-        });
+        response = await productsApi.getAll(paginatedParams(5000));
       }
 
       if (response.success && response.data) {
@@ -434,7 +433,7 @@ export default function ReportsPage() {
       const dayStart = moment(dayBookDate, 'YYYY-MM-DD').startOf('day');
       const dayEnd = moment(dayBookDate, 'YYYY-MM-DD').endOf('day');
       const params: Record<string, string> = {
-        limit: '5000',
+        ...paginatedParams(5000),
         // Send absolute instants (UTC) for correct local-day filtering on backend.
         startDate: dayStart.toISOString(),
         endDate: dayEnd.toISOString(),

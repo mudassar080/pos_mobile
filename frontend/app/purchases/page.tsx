@@ -52,6 +52,8 @@ import {
 import { purchasesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -67,45 +69,41 @@ import {
 export default function PurchasesPage() {
   const { toast } = useToast();
   const { canEdit, canDelete } = usePermissions();
-  const [purchases, setPurchases] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [summary, setSummary] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; num: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [detailsPurchase, setDetailsPurchase] = useState<any | null>(null);
 
-  const fetchPurchases = async () => {
+  const {
+    items: purchases,
+    loading,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => purchasesApi.getAll(params), {
+    sortBy: 'date',
+    sortOrder: 'desc',
+  });
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const response = await purchasesApi.getAll({ limit: '100', sortOrder: 'desc' });
+      const response = await purchasesApi.getSummary();
       if (response.success && response.data) {
-        setPurchases(response.data);
+        setSummary(response.data);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch purchases',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // ignore
     }
   };
 
   useEffect(() => {
-    fetchPurchases();
+    fetchSummary();
   }, []);
-
-  const filteredPurchases = purchases.filter(
-    (p) =>
-      p.purchaseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.supplierName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const activePurchases = filteredPurchases.filter((p) => p.status !== 'cancelled');
-  const totalAmount = activePurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalPaid = activePurchases.reduce((sum, p) => sum + (p.paid || 0), 0);
-  const totalBalance = totalAmount - totalPaid;
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -117,7 +115,8 @@ export default function PurchasesPage() {
         description: `Purchase ${deleteTarget.num} removed and inventory/supplier totals adjusted.`,
       });
       setDeleteTarget(null);
-      await fetchPurchases();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Could not delete',
@@ -145,25 +144,25 @@ export default function PurchasesPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Purchases"
-            value={String(activePurchases.length)}
+            value={summary ? String(summary.count || 0) : '-'}
             icon={Package}
             theme="bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-900 ring-1 ring-blue-100"
           />
           <SummaryStat
             label="Total Amount"
-            value={formatCurrency(totalAmount)}
+            value={summary ? formatCurrency(summary.totalPurchases || 0) : '-'}
             icon={DollarSign}
             theme="bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-900 ring-1 ring-indigo-100"
           />
           <SummaryStat
             label="Paid"
-            value={formatCurrency(totalPaid)}
+            value={summary ? formatCurrency(summary.totalPaid || 0) : '-'}
             icon={CreditCard}
             theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="Outstanding"
-            value={formatCurrency(totalBalance)}
+            value={summary ? formatCurrency(summary.totalBalance || 0) : '-'}
             icon={Wallet}
             theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
           />
@@ -178,8 +177,8 @@ export default function PurchasesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by purchase # or supplier..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -192,7 +191,7 @@ export default function PurchasesPage() {
           ) : (
             <>
               <div className="space-y-3 md:hidden">
-                {filteredPurchases.map((purchase) => {
+                {purchases.map((purchase) => {
                   const balance = purchase.balance ?? purchase.amount - purchase.paid;
                   return (
                     <div
@@ -259,7 +258,7 @@ export default function PurchasesPage() {
                     </div>
                   );
                 })}
-                {filteredPurchases.length === 0 && (
+                {purchases.length === 0 && (
                   <div className="rounded-2xl bg-slate-50 py-10 text-center text-slate-500 text-sm">
                     No purchases found
                   </div>
@@ -282,7 +281,7 @@ export default function PurchasesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPurchases.map((purchase) => (
+                    {purchases.map((purchase) => (
                       <TableRow key={purchase._id} className="hover:bg-indigo-50/20">
                         <TableCell className="font-semibold text-indigo-800">
                           {purchase.purchaseNumber}
@@ -350,7 +349,7 @@ export default function PurchasesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredPurchases.length === 0 && (
+                    {purchases.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-10 text-slate-500">
                           No purchases found
@@ -360,6 +359,8 @@ export default function PurchasesPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

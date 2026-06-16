@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,49 +47,41 @@ import {
 
 export default function SalesReturnsPage() {
   const { toast } = useToast();
-  const [returns, setReturns] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<any>(null);
 
-  const fetchReturns = async () => {
+  const {
+    items: returns,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => saleReturnsApi.getAll(params), {
+    sortBy: 'date',
+    sortOrder: 'desc',
+  });
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const [returnsRes, summaryRes] = await Promise.all([
-        saleReturnsApi.getAll({ limit: '100', sortOrder: 'desc' }),
-        saleReturnsApi.getSummary(),
-      ]);
-      if (returnsRes.success && returnsRes.data) {
-        setReturns(returnsRes.data);
-      }
+      const summaryRes = await saleReturnsApi.getSummary();
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch sale returns',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // Summary cards fall back to dashes
     }
   };
 
   useEffect(() => {
-    fetchReturns();
+    fetchSummary();
   }, []);
-
-  const filteredReturns = returns.filter(
-    (ret) =>
-      ret.returnNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ret.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ret.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleDeleteReturn = async () => {
     if (!selectedReturn) return;
@@ -101,7 +95,8 @@ export default function SalesReturnsPage() {
       });
       setShowDeleteDialog(false);
       setSelectedReturn(null);
-      fetchReturns();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -127,25 +122,25 @@ export default function SalesReturnsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Returns"
-            value={loading ? '-' : String(summary?.totalReturns || 0)}
+            value={summary ? String(summary.totalReturns || 0) : '-'}
             icon={RotateCcw}
             theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
           />
           <SummaryStat
             label="This Month"
-            value={loading ? '-' : String(summary?.thisMonthReturns || 0)}
+            value={summary ? String(summary.thisMonthReturns || 0) : '-'}
             icon={CalendarDays}
             theme="bg-gradient-to-br from-amber-50 to-yellow-100 text-amber-900 ring-1 ring-amber-100"
           />
           <SummaryStat
             label="Total Value"
-            value={loading ? '-' : formatCurrency(summary?.totalAmount || 0)}
+            value={summary ? formatCurrency(summary.totalAmount || 0) : '-'}
             icon={DollarSign}
             theme="bg-gradient-to-br from-rose-50 to-orange-100 text-rose-900 ring-1 ring-rose-100"
           />
         </div>
 
-        {!loading && summary?.byReason?.[0] && (
+        {summary?.byReason?.[0] && (
           <div className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-4 py-2 text-sm text-orange-800 ring-1 ring-orange-100">
             <Tag className="h-4 w-4" />
             Top reason: <strong>{summary.byReason[0]._id}</strong> ({summary.byReason[0].count} returns)
@@ -153,7 +148,7 @@ export default function SalesReturnsPage() {
         )}
 
         <ColorCard
-          title="Returns History"
+          title={`Returns History${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 border-orange-100/50 text-orange-900"
         >
           <div className="mb-4">
@@ -161,8 +156,8 @@ export default function SalesReturnsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search returns..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -176,7 +171,7 @@ export default function SalesReturnsPage() {
             <>
               {/* Mobile cards */}
               <div className="space-y-3 md:hidden">
-                {filteredReturns.map((ret) => (
+                {returns.map((ret) => (
                   <div
                     key={ret._id}
                     className="rounded-2xl border border-orange-100/80 bg-gradient-to-br from-white to-orange-50/30 p-4 shadow-sm"
@@ -238,7 +233,7 @@ export default function SalesReturnsPage() {
                     </div>
                   </div>
                 ))}
-                {filteredReturns.length === 0 && (
+                {returns.length === 0 && (
                   <div className="rounded-2xl bg-slate-50 py-10 text-center text-slate-500 text-sm">
                     No sale returns found
                   </div>
@@ -263,7 +258,7 @@ export default function SalesReturnsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredReturns.map((ret) => (
+                    {returns.map((ret) => (
                       <TableRow key={ret._id} className="hover:bg-orange-50/30">
                         <TableCell className="font-semibold text-orange-800">{ret.returnNumber}</TableCell>
                         <TableCell>{ret.invoiceNumber}</TableCell>
@@ -318,7 +313,7 @@ export default function SalesReturnsPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredReturns.length === 0 && (
+                    {returns.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={10} className="text-center py-10 text-slate-500">
                           No sale returns found
@@ -328,6 +323,8 @@ export default function SalesReturnsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

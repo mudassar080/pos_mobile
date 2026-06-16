@@ -33,6 +33,8 @@ import {
   type ExpenseFormData,
 } from '@/components/expenses/expense-form-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 
 const defaultForm = (): ExpenseFormData => ({
   category: '',
@@ -45,48 +47,41 @@ const defaultForm = (): ExpenseFormData => ({
 export default function ExpensesPage() {
   const { toast } = useToast();
   const { isFullAccess } = usePermissions();
-  const [expenses, setExpenses] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [formData, setFormData] = useState<ExpenseFormData>(defaultForm());
 
-  const fetchExpenses = async () => {
+  const {
+    items: expenses,
+    loading,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => expensesApi.getAll(params), {
+    sortBy: 'date',
+    sortOrder: 'desc',
+  });
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const [expensesRes, summaryRes] = await Promise.all([
-        expensesApi.getAll({ limit: '100', sortOrder: 'desc' }),
-        expensesApi.getSummary(),
-      ]);
-      if (expensesRes.success && expensesRes.data) {
-        setExpenses(expensesRes.data);
+      const response = await expensesApi.getSummary();
+      if (response.success && response.data) {
+        setSummary(response.data);
       }
-      if (summaryRes.success && summaryRes.data) {
-        setSummary(summaryRes.data);
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch expenses',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // ignore
     }
   };
 
   useEffect(() => {
-    fetchExpenses();
+    fetchSummary();
   }, []);
-
-  const filteredExpenses = expenses.filter(
-    (e) =>
-      e.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.paymentMode?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleOpenAdd = () => {
     setFormData(defaultForm());
@@ -113,7 +108,8 @@ export default function ExpensesPage() {
       toast({ title: 'Success', description: 'Expense added successfully' });
       setShowAddExpense(false);
       setFormData(defaultForm());
-      fetchExpenses();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -206,8 +202,8 @@ export default function ExpensesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search category, description, payment..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -221,7 +217,7 @@ export default function ExpensesPage() {
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredExpenses.map((expense) => (
+                {expenses.map((expense) => (
                   <div
                     key={expense._id}
                     className="rounded-2xl border border-rose-100/80 bg-gradient-to-br from-white to-rose-50/30 p-4 shadow-sm"
@@ -244,7 +240,7 @@ export default function ExpensesPage() {
                     </div>
                   </div>
                 ))}
-                {filteredExpenses.length === 0 && (
+                {expenses.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No expenses found</p>
                 )}
               </div>
@@ -261,7 +257,7 @@ export default function ExpensesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredExpenses.map((expense) => (
+                    {expenses.map((expense) => (
                       <TableRow key={expense._id} className="hover:bg-rose-50/20">
                         <TableCell>{formatAccountingDate(expense.date)}</TableCell>
                         <TableCell>
@@ -282,7 +278,7 @@ export default function ExpensesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredExpenses.length === 0 && (
+                    {expenses.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                           No expenses found
@@ -292,6 +288,8 @@ export default function ExpensesPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

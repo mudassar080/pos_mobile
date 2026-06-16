@@ -37,7 +37,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { customersApi, suppliersApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -146,12 +149,10 @@ function CustomerActions({
 
 export default function CustomersPage() {
   const { toast } = useToast();
-  const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [allCustomersForLink, setAllCustomersForLink] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [showEditCustomer, setShowEditCustomer] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -168,43 +169,50 @@ export default function CustomersPage() {
     address: '',
   });
 
-  const fetchData = async () => {
+  const {
+    items: customers,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => customersApi.getAll(params));
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const [customersRes, summaryRes, suppliersRes] = await Promise.all([
-        customersApi.getAll({ limit: '100' }),
-        customersApi.getSummary(),
-        suppliersApi.getAll({ limit: '100' }),
+      const response = await customersApi.getSummary();
+      if (response.success && response.data) {
+        setSummary(response.data);
+      }
+    } catch {
+      // Summary cards fall back to dashes
+    }
+  };
+
+  const fetchLinkData = async () => {
+    try {
+      const [suppliersRes, customersRes] = await Promise.all([
+        suppliersApi.getAll(paginatedParams(500)),
+        customersApi.getAll(paginatedParams(500)),
       ]);
-      if (customersRes.success && customersRes.data) {
-        setCustomers(customersRes.data as any[]);
-      }
-      if (summaryRes.success && summaryRes.data) {
-        setSummary(summaryRes.data);
-      }
       if (suppliersRes.success && suppliersRes.data) {
         setSuppliers(suppliersRes.data as any[]);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch data',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      if (customersRes.success && customersRes.data) {
+        setAllCustomersForLink(customersRes.data as any[]);
+      }
+    } catch {
+      // Link dialog falls back to empty lists
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchSummary();
+    fetchLinkData();
   }, []);
-
-  const filteredCustomers = customers.filter(
-    (customer) =>
-      customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone?.includes(searchTerm)
-  );
 
   const resetForm = () => {
     setFormData({ name: '', phone: '', email: '', address: '' });
@@ -231,7 +239,8 @@ export default function CustomersPage() {
       toast({ title: 'Success', description: 'Customer created successfully' });
       setShowAddCustomer(false);
       resetForm();
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -271,7 +280,8 @@ export default function CustomersPage() {
       setShowEditCustomer(false);
       setSelectedCustomer(null);
       resetForm();
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -292,7 +302,8 @@ export default function CustomersPage() {
       toast({ title: 'Success', description: 'Customer deleted successfully' });
       setShowDeleteDialog(false);
       setSelectedCustomer(null);
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -321,7 +332,8 @@ export default function CustomersPage() {
       setShowPayment(false);
       setPaymentAmount('');
       setSelectedCustomer(null);
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -352,7 +364,8 @@ export default function CustomersPage() {
       setShowLinkDialog(false);
       setSelectedSupplierId('');
       setSelectedCustomer(null);
-      fetchData();
+      await refetch();
+      await fetchLinkData();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -365,7 +378,7 @@ export default function CustomersPage() {
   };
 
   const getAvailableSuppliers = () => {
-    const linkedSupplierIds = customers
+    const linkedSupplierIds = allCustomersForLink
       .filter((c) => c.linkedSupplier && c._id !== selectedCustomer?._id)
       .map((c) =>
         typeof c.linkedSupplier === 'object' ? c.linkedSupplier._id : c.linkedSupplier
@@ -387,32 +400,32 @@ export default function CustomersPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Customers"
-            value={loading ? '-' : String(summary?.totalCustomers || customers.length)}
+            value={summary ? String(summary.totalCustomers || 0) : '-'}
             icon={Users}
             theme="bg-gradient-to-br from-pink-50 to-rose-100 text-pink-900 ring-1 ring-pink-100"
           />
           <SummaryStat
             label="Receivables"
-            value={loading ? '-' : formatCurrency(summary?.totalReceivables || 0)}
+            value={summary ? formatCurrency(summary.totalReceivables || 0) : '-'}
             icon={Wallet}
             theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
           />
           <SummaryStat
             label="With Credit"
-            value={loading ? '-' : String(summary?.customersWithCredit || 0)}
+            value={summary ? String(summary.customersWithCredit || 0) : '-'}
             icon={CreditCard}
             theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
           />
           <SummaryStat
             label="Total Sales"
-            value={loading ? '-' : formatCurrency(summary?.totalSalesValue || 0)}
+            value={summary ? formatCurrency(summary.totalSalesValue || 0) : '-'}
             icon={TrendingUp}
             theme="bg-gradient-to-br from-fuchsia-50 to-pink-100 text-fuchsia-900 ring-1 ring-fuchsia-100"
           />
         </div>
 
         <ColorCard
-          title="Customer List"
+          title={`Customer List${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-pink-50 via-rose-50 to-red-50 border-rose-100/50 text-rose-900"
         >
           <div className="mb-4">
@@ -420,8 +433,8 @@ export default function CustomersPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by name or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -434,7 +447,7 @@ export default function CustomersPage() {
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredCustomers.map((customer) => {
+                {customers.map((customer) => {
                   const linked = customer.linkedSupplier;
                   const receivable = customer.outstanding || 0;
                   const payable = linked?.outstanding || 0;
@@ -505,7 +518,7 @@ export default function CustomersPage() {
                     </div>
                   );
                 })}
-                {filteredCustomers.length === 0 && (
+                {customers.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No customers found</p>
                 )}
               </div>
@@ -524,7 +537,7 @@ export default function CustomersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredCustomers.map((customer) => {
+                    {customers.map((customer) => {
                       const linked = customer.linkedSupplier;
                       const receivable = customer.outstanding || 0;
                       const payable = linked?.outstanding || 0;
@@ -590,7 +603,7 @@ export default function CustomersPage() {
                         </TableRow>
                       );
                     })}
-                    {filteredCustomers.length === 0 && (
+                    {customers.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-slate-500">
                           No customers found
@@ -600,6 +613,8 @@ export default function CustomersPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

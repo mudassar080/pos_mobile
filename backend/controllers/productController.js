@@ -1,14 +1,17 @@
 const Product = require('../models/Product');
 const logActivity = require('../utils/logActivity');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all products
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       category,
       type,
@@ -27,6 +30,7 @@ const getProducts = async (req, res) => {
         { brand: { $regex: search, $options: 'i' } },
         { model: { $regex: search, $options: 'i' } },
         { imei: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -47,9 +51,6 @@ const getProducts = async (req, res) => {
     }
 
     // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Build sort object
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
@@ -57,19 +58,14 @@ const getProducts = async (req, res) => {
     const products = await Product.find(query)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
 
     const total = await Product.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: products,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

@@ -184,7 +184,10 @@ export const salesApi = {
     const query = params ? `?${new URLSearchParams(params)}` : '';
     return fetchApi<any>(`/sales/summary${query}`);
   },
-  getReceivables: () => fetchApi<any>('/sales/receivables'),
+  getReceivables: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params)}` : '';
+    return fetchApi<any>(`/sales/receivables${query}`);
+  },
   getTrend: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params)}` : '';
     return fetchApi<any[]>(`/sales/trend${query}`);
@@ -247,7 +250,10 @@ export const purchasesApi = {
     const query = params ? `?${new URLSearchParams(params)}` : '';
     return fetchApi<any>(`/purchases/summary${query}`);
   },
-  getPayables: () => fetchApi<any>('/purchases/payables'),
+  getPayables: (params?: Record<string, string>) => {
+    const query = params ? `?${new URLSearchParams(params)}` : '';
+    return fetchApi<any>(`/purchases/payables${query}`);
+  },
 };
 
 // Expenses API

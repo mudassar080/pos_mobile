@@ -41,6 +41,7 @@ import {
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency } from '@/utils/constant';
 import { productsApi, suppliersApi, purchasesApi, purchaseReturnsApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '@/components/ui/combobox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -115,8 +116,8 @@ export default function EditPurchasePage() {
         await Promise.all([
           purchasesApi.getById(purchaseId),
           purchaseReturnsApi.getReturnedQuantities(purchaseId),
-          productsApi.getAll({ limit: '500' }),
-          suppliersApi.getAll({ limit: '100' }),
+          productsApi.getAll(paginatedParams(500)),
+          suppliersApi.getAll(paginatedParams(100)),
           productsApi.getCategories(),
         ]);
 

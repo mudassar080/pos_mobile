@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -60,43 +62,35 @@ interface Summary {
 
 export default function ReceivablesPage() {
   const { toast } = useToast();
-  const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedReceivable, setSelectedReceivable] = useState<Receivable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const fetchReceivables = async () => {
-    try {
-      setLoading(true);
-      const response: any = await salesApi.getReceivables();
-      if (response.success) {
-        setReceivables(response.data || []);
-        setSummary(response.summary || null);
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch receivables',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+  const fetchReceivables = useCallback(async (params: Record<string, string>) => {
+    const response: any = await salesApi.getReceivables(params);
+    if (response.success && response.summary) {
+      setSummary(response.summary);
     }
-  };
-
-  useEffect(() => {
-    fetchReceivables();
+    return {
+      success: response.success,
+      data: response.data,
+      pagination: response.pagination,
+    };
   }, []);
 
-  const filteredReceivables = receivables.filter(
-    (r) =>
-      r.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.invoice?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const {
+    items: receivables,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList<Receivable>(fetchReceivables, { sortBy: 'date', sortOrder: 'desc' });
 
   const openPayment = (item: Receivable) => {
     setSelectedReceivable(item);
@@ -124,7 +118,7 @@ export default function ReceivablesPage() {
       setShowPaymentDialog(false);
       setSelectedReceivable(null);
       setPaymentAmount('');
-      fetchReceivables();
+      await refetch();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -161,38 +155,38 @@ export default function ReceivablesPage() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Receivables"
-            value={loading ? '-' : formatCurrency(summary?.totalReceivables || 0)}
+            value={summary ? formatCurrency(summary.totalReceivables) : '-'}
             icon={Wallet}
             theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
           />
           <SummaryStat
             label="0-30 Days"
-            value={loading ? '-' : formatCurrency(summary?.aging0to30 || 0)}
+            value={summary ? formatCurrency(summary.aging0to30) : '-'}
             icon={Clock}
             theme="bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="30-60 Days"
-            value={loading ? '-' : formatCurrency(summary?.aging30to60 || 0)}
+            value={summary ? formatCurrency(summary.aging30to60) : '-'}
             icon={Clock}
             theme="bg-gradient-to-br from-amber-50 to-orange-100 text-amber-900 ring-1 ring-amber-100"
           />
           <SummaryStat
             label="60+ Days"
-            value={loading ? '-' : formatCurrency(summary?.aging60plus || 0)}
+            value={summary ? formatCurrency(summary.aging60plus) : '-'}
             icon={AlertTriangle}
             theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
           />
           <SummaryStat
             label="Customers"
-            value={loading ? '-' : String(summary?.totalCustomers || 0)}
+            value={summary ? String(summary.totalCustomers) : '-'}
             icon={Users}
             theme="bg-gradient-to-br from-amber-50 to-yellow-100 text-amber-900 ring-1 ring-amber-100"
           />
         </div>
 
         <ColorCard
-          title="Receivables Details"
+          title={`Receivables Details${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-amber-50 via-orange-50 to-red-50 border-orange-100/50 text-orange-900"
         >
           <div className="mb-4">
@@ -200,8 +194,8 @@ export default function ReceivablesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by customer or invoice..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -214,7 +208,7 @@ export default function ReceivablesPage() {
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredReceivables.map((item) => (
+                {receivables.map((item) => (
                   <div
                     key={item._id}
                     className="rounded-2xl border border-orange-100/80 bg-gradient-to-br from-white to-orange-50/30 p-4 shadow-sm"
@@ -255,7 +249,7 @@ export default function ReceivablesPage() {
                     </div>
                   </div>
                 ))}
-                {filteredReceivables.length === 0 && (
+                {receivables.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No receivables found</p>
                 )}
               </div>
@@ -276,7 +270,7 @@ export default function ReceivablesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredReceivables.map((item) => (
+                    {receivables.map((item) => (
                       <TableRow key={item._id} className="hover:bg-orange-50/20">
                         <TableCell className="font-medium text-orange-900">
                           {item.customer}
@@ -302,7 +296,7 @@ export default function ReceivablesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredReceivables.length === 0 && (
+                    {receivables.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-8 text-slate-500">
                           No receivables found
@@ -312,6 +306,8 @@ export default function ReceivablesPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

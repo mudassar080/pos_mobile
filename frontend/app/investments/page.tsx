@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,10 +82,9 @@ const defaultTransactionForm = (): TransactionFormData => ({
 
 export default function InvestmentsPage() {
   const { toast } = useToast();
-  const [investments, setInvestments] = useState<any[]>([]);
   const [owners, setOwners] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [metaLoading, setMetaLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [showAddOwner, setShowAddOwner] = useState(false);
@@ -97,17 +98,32 @@ export default function InvestmentsPage() {
   );
   const [deletingOwner, setDeletingOwner] = useState(false);
 
-  const fetchData = async () => {
+  const extraParams = useMemo((): Record<string, string> => {
+    if (filterOwner !== 'all') return { owner: filterOwner };
+    return {};
+  }, [filterOwner]);
+
+  const {
+    items: investments,
+    loading: listLoading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    refetch: refetchInvestments,
+  } = usePaginatedList<any>((params) => investmentsApi.getAll(params), {
+    sortBy: 'date',
+    sortOrder: 'desc',
+    extraParams,
+  });
+
+  const fetchMeta = async () => {
     try {
-      setLoading(true);
-      const [investmentsRes, summaryRes, ownersRes] = await Promise.all([
-        investmentsApi.getAll({ limit: '200', sortOrder: 'desc' }),
+      setMetaLoading(true);
+      const [summaryRes, ownersRes] = await Promise.all([
         investmentsApi.getSummary(),
         ownersApi.getAll(),
       ]);
-      if (investmentsRes.success && investmentsRes.data) {
-        setInvestments(investmentsRes.data);
-      }
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
       }
@@ -121,12 +137,12 @@ export default function InvestmentsPage() {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setMetaLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchMeta();
   }, []);
 
   const handleSaveTransaction = async () => {
@@ -160,7 +176,8 @@ export default function InvestmentsPage() {
       toast({ title: 'Success', description: 'Transaction added successfully' });
       setShowAddTransaction(false);
       setFormData(defaultTransactionForm());
-      fetchData();
+      await refetchInvestments();
+      await fetchMeta();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -208,7 +225,7 @@ export default function InvestmentsPage() {
       setShowAddOwner(false);
       setEditingOwner(null);
       setOwnerForm(emptyOwnerForm());
-      fetchData();
+      await fetchMeta();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -239,7 +256,7 @@ export default function InvestmentsPage() {
       await ownersApi.delete(deleteOwnerTarget.id);
       toast({ title: 'Success', description: 'Owner deleted successfully' });
       setDeleteOwnerTarget(null);
-      fetchData();
+      await fetchMeta();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -250,13 +267,6 @@ export default function InvestmentsPage() {
       setDeletingOwner(false);
     }
   };
-
-  const filteredInvestments =
-    filterOwner === 'all'
-      ? investments
-      : investments.filter(
-          (inv) => inv.owner?._id === filterOwner || inv.owner === filterOwner
-        );
 
   return (
     <MainLayout>
@@ -277,25 +287,25 @@ export default function InvestmentsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Investments"
-            value={loading ? '-' : formatCurrency(summary?.totalInvestments || 0)}
+            value={summary ? formatCurrency(summary.totalInvestments || 0) : '-'}
             icon={TrendingUp}
             theme="bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="Total Withdrawals"
-            value={loading ? '-' : formatCurrency(summary?.totalWithdrawals || 0)}
+            value={summary ? formatCurrency(summary.totalWithdrawals || 0) : '-'}
             icon={TrendingDown}
             theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
           />
           <SummaryStat
             label="Net Balance"
-            value={loading ? '-' : formatCurrency(summary?.netBalance || 0)}
+            value={summary ? formatCurrency(summary.netBalance || 0) : '-'}
             icon={Scale}
             theme="bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-900 ring-1 ring-violet-100"
           />
           <SummaryStat
             label="Owners"
-            value={loading ? '-' : String(owners.length)}
+            value={metaLoading ? '-' : String(owners.length)}
             icon={Users}
             theme="bg-gradient-to-br from-indigo-50 to-purple-100 text-indigo-900 ring-1 ring-indigo-100"
           />
@@ -345,7 +355,7 @@ export default function InvestmentsPage() {
           title={`Owners (${owners.length})`}
           headerClassName="bg-gradient-to-r from-indigo-50 via-violet-50 to-purple-50 border-violet-100/50 text-violet-900"
         >
-          {loading ? (
+          {metaLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
             </div>
@@ -445,7 +455,7 @@ export default function InvestmentsPage() {
         </ColorCard>
 
         <ColorCard
-          title="Transaction History"
+          title={`Transaction History${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-purple-50 to-violet-50 border-purple-100/50 text-purple-900"
         >
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -464,14 +474,14 @@ export default function InvestmentsPage() {
             </Select>
           </div>
 
-          {loading ? (
+          {listLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
             </div>
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredInvestments.map((item) => (
+                {investments.map((item) => (
                   <div
                     key={item._id}
                     className="rounded-2xl border border-purple-100/80 bg-gradient-to-br from-white to-purple-50/30 p-4 shadow-sm"
@@ -504,7 +514,7 @@ export default function InvestmentsPage() {
                     )}
                   </div>
                 ))}
-                {filteredInvestments.length === 0 && (
+                {investments.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No transactions found</p>
                 )}
               </div>
@@ -521,7 +531,7 @@ export default function InvestmentsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInvestments.map((item) => (
+                    {investments.map((item) => (
                       <TableRow key={item._id} className="hover:bg-purple-50/20">
                         <TableCell>{formatAccountingDate(item.date)}</TableCell>
                         <TableCell className="font-medium text-purple-900">
@@ -543,7 +553,7 @@ export default function InvestmentsPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredInvestments.length === 0 && (
+                    {investments.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                           No transactions found
@@ -553,6 +563,8 @@ export default function InvestmentsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

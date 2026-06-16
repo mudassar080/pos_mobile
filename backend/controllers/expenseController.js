@@ -1,14 +1,17 @@
 const Expense = require('../models/Expense');
 const logActivity = require('../utils/logActivity');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all expenses
 // @route   GET /api/expenses
 // @access  Public
 const getExpenses = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       category,
       startDate,
@@ -22,6 +25,8 @@ const getExpenses = async (req, res) => {
     if (search) {
       query.$or = [
         { description: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } },
+        { paymentMode: { $regex: search, $options: 'i' } },
       ];
     }
 
@@ -35,26 +40,20 @@ const getExpenses = async (req, res) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
     const expenses = await Expense.find(query)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
 
     const total = await Expense.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: expenses,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

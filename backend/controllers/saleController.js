@@ -2,15 +2,18 @@ const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const logActivity = require('../utils/logActivity');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all sales
 // @route   GET /api/sales
 // @access  Public
 const getSales = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       customer,
       status,
@@ -43,7 +46,6 @@ const getSales = async (req, res) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
@@ -52,19 +54,14 @@ const getSales = async (req, res) => {
       .populate('items.product', 'name category brand purchasePrice')
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
 
     const total = await Sale.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: sales,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({
@@ -544,25 +541,41 @@ const getSalesSummary = async (req, res) => {
 // @access  Public
 const getReceivables = async (req, res) => {
   try {
-    const { sortBy = 'date', sortOrder = 'desc' } = req.query;
+    const paging = parsePagination(req, res);
+    if (!paging) return;
 
-    // Get sales with balance > 0 (unpaid or partially paid)
+    const { page, limit, skip } = paging;
+    const {
+      sortBy = 'date',
+      sortOrder = 'desc',
+      search,
+    } = req.query;
+
+    const query = {
+      balance: { $gt: 0 },
+      status: { $nin: ['paid', 'cancelled'] },
+    };
+
+    if (search) {
+      query.$or = [
+        { invoiceNumber: { $regex: search, $options: 'i' } },
+        { customerName: { $regex: search, $options: 'i' } },
+      ];
+    }
+
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    const receivables = await Sale.find({
-      balance: { $gt: 0 },
-      status: { $nin: ['paid', 'cancelled'] },
-    })
-      .populate('customer', 'name phone')
-      .sort(sort);
+    const [sales, total] = await Promise.all([
+      Sale.find(query).populate('customer', 'name phone').sort(sort).skip(skip).limit(limit),
+      Sale.countDocuments(query),
+    ]);
 
-    // Calculate aging for each receivable
     const now = new Date();
-    const receivablesWithAging = receivables.map((sale) => {
+    const mapReceivable = (sale) => {
       const saleDate = new Date(sale.date);
       const daysDiff = Math.floor((now - saleDate) / (1000 * 60 * 60 * 24));
-      
+
       let aging = '0-30 days';
       if (daysDiff > 60) {
         aging = '60+ days';
@@ -570,7 +583,6 @@ const getReceivables = async (req, res) => {
         aging = '30-60 days';
       }
 
-      // Calculate due date (30 days from sale date)
       const dueDate = new Date(saleDate);
       dueDate.setDate(dueDate.getDate() + 30);
 
@@ -583,21 +595,27 @@ const getReceivables = async (req, res) => {
         amount: sale.amount,
         paid: sale.paid,
         due: sale.balance,
-        dueDate: dueDate,
+        dueDate,
         aging,
         daysDiff,
       };
-    });
+    };
 
-    // Calculate summary
-    const totalReceivables = receivablesWithAging.reduce((sum, r) => sum + r.due, 0);
-    const aging0to30 = receivablesWithAging
+    const receivablesWithAging = sales.map(mapReceivable);
+
+    const allForSummary = await Sale.find(query).select(
+      'date balance amount paid customerName invoiceNumber customer'
+    );
+    const summaryRows = allForSummary.map((sale) => mapReceivable(sale));
+
+    const totalReceivables = summaryRows.reduce((sum, r) => sum + r.due, 0);
+    const aging0to30 = summaryRows
       .filter((r) => r.aging === '0-30 days')
       .reduce((sum, r) => sum + r.due, 0);
-    const aging30to60 = receivablesWithAging
+    const aging30to60 = summaryRows
       .filter((r) => r.aging === '30-60 days')
       .reduce((sum, r) => sum + r.due, 0);
-    const aging60plus = receivablesWithAging
+    const aging60plus = summaryRows
       .filter((r) => r.aging === '60+ days')
       .reduce((sum, r) => sum + r.due, 0);
 
@@ -609,8 +627,9 @@ const getReceivables = async (req, res) => {
         aging0to30,
         aging30to60,
         aging60plus,
-        totalCustomers: receivablesWithAging.length,
+        totalCustomers: summaryRows.length,
       },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

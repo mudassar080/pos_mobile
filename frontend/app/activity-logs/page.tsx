@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,13 +83,32 @@ export default function ActivityLogsPage() {
   const { canViewActivityLogs } = usePermissions();
   const router = useRouter();
 
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [entityFilter, setEntityFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+
+  const extraParams = useMemo(() => {
+    const params: Record<string, string> = {};
+    if (entityFilter !== 'all') params.entity = entityFilter;
+    if (actionFilter !== 'all') params.action = actionFilter;
+    return params;
+  }, [entityFilter, actionFilter]);
+
+  const {
+    items: logs,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => activityLogsApi.getAll(params), {
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+    extraParams,
+    enabled: canViewActivityLogs,
+  });
 
   useEffect(() => {
     if (user && !canViewActivityLogs) {
@@ -95,43 +116,16 @@ export default function ActivityLogsPage() {
     }
   }, [user, canViewActivityLogs, router]);
 
-  const fetchLogs = useCallback(async () => {
+  const handleRefresh = async () => {
     try {
-      setLoading(true);
-      const params: Record<string, string> = {
-        page: String(page),
-        limit: '50',
-      };
-      if (searchTerm.trim()) params.search = searchTerm.trim();
-      if (entityFilter !== 'all') params.entity = entityFilter;
-      if (actionFilter !== 'all') params.action = actionFilter;
-
-      const res = await activityLogsApi.getAll(params);
-      if (res.success && res.data) {
-        setLogs(res.data);
-        setTotalPages(res.pagination?.pages || 1);
-      }
+      await refetch();
     } catch (error: any) {
       toast({
         title: 'Error',
         description: error.message || 'Failed to load activity logs',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
-  }, [page, searchTerm, entityFilter, actionFilter, toast]);
-
-  useEffect(() => {
-    if (canViewActivityLogs) {
-      fetchLogs();
-    }
-  }, [canViewActivityLogs, fetchLogs]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    fetchLogs();
   };
 
   if (!canViewActivityLogs) return null;
@@ -153,7 +147,7 @@ export default function ActivityLogsPage() {
             </div>
             <Button
               variant="secondary"
-              onClick={fetchLogs}
+              onClick={handleRefresh}
               disabled={loading}
               className="rounded-xl bg-white/95 text-orange-900 hover:bg-white border-0"
             >
@@ -168,17 +162,17 @@ export default function ActivityLogsPage() {
         </div>
 
         <div className="rounded-2xl bg-white p-4 sm:p-6 shadow-lg ring-1 ring-slate-200/60 space-y-4">
-          <form onSubmit={handleSearch} className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 placeholder="Search user, email, or description..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 rounded-xl"
               />
             </div>
-            <Select value={entityFilter} onValueChange={(v) => { setEntityFilter(v); setPage(1); }}>
+            <Select value={entityFilter} onValueChange={setEntityFilter}>
               <SelectTrigger className="w-full lg:w-[160px] rounded-xl">
                 <SelectValue placeholder="Entity" />
               </SelectTrigger>
@@ -191,7 +185,7 @@ export default function ActivityLogsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v); setPage(1); }}>
+            <Select value={actionFilter} onValueChange={setActionFilter}>
               <SelectTrigger className="w-full lg:w-[160px] rounded-xl">
                 <SelectValue placeholder="Action" />
               </SelectTrigger>
@@ -206,10 +200,7 @@ export default function ActivityLogsPage() {
                 <SelectItem value="stock_update">Stock update</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="submit" className="rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 border-0">
-              Search
-            </Button>
-          </form>
+          </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -298,31 +289,7 @@ export default function ActivityLogsPage() {
                 </Table>
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-slate-600">
-                    Page {page} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </div>

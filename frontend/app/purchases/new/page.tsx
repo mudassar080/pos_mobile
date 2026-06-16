@@ -41,6 +41,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/utils/constant';
 import { productsApi, suppliersApi, purchasesApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '@/components/ui/combobox';
 
@@ -107,8 +108,8 @@ export default function NewPurchasePage() {
   const fetchData = async () => {
     try {
       const [productsRes, suppliersRes, categoriesRes] = await Promise.all([
-        productsApi.getAll({ limit: '500' }),
-        suppliersApi.getAll({ limit: '100' }),
+        productsApi.getAll(paginatedParams(500)),
+        suppliersApi.getAll(paginatedParams(100)),
         productsApi.getCategories(),
       ]);
       if (productsRes.success && productsRes.data) {

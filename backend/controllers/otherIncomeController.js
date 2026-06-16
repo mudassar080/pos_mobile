@@ -1,13 +1,17 @@
 const OtherIncome = require('../models/OtherIncome');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all other income
 // @route   GET /api/other-income
 // @access  Public
 const getOtherIncomes = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
+      search,
       category,
       startDate,
       endDate,
@@ -16,6 +20,14 @@ const getOtherIncomes = async (req, res) => {
     } = req.query;
 
     const query = {};
+
+    if (search) {
+      query.$or = [
+        { description: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } },
+        { paymentMode: { $regex: search, $options: 'i' } },
+      ];
+    }
 
     if (category) {
       query.category = category;
@@ -27,26 +39,20 @@ const getOtherIncomes = async (req, res) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
     const incomes = await OtherIncome.find(query)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limit);
 
     const total = await OtherIncome.countDocuments(query);
 
     res.status(200).json({
       success: true,
       data: incomes,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

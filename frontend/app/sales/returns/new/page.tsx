@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, Loader2, RotateCcw, Package, DollarSign, TrendingUp } from 'lucide-react';
 import { saleReturnsApi, salesApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, REFUND_METHODS } from '@/utils/constant';
 import { cn } from '@/lib/utils';
@@ -51,7 +52,7 @@ export default function NewSalesReturnPage() {
   const fetchSales = async () => {
     try {
       setLoadingSales(true);
-      const response = await salesApi.getAll({ limit: '200' });
+      const response = await salesApi.getAll(paginatedParams(200));
       if (response.success && response.data) {
         setSales(response.data);
       }

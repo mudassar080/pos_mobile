@@ -18,6 +18,8 @@ import Link from 'next/link';
 import { salesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -33,28 +35,36 @@ import {
 export default function SalesPage() {
   const { toast } = useToast();
   const { canEdit, canDelete } = usePermissions();
-  const [sales, setSales] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [summary, setSummary] = useState<any>(null);
 
-  const fetchSales = async () => {
+  const {
+    items: sales,
+    loading,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => salesApi.getAll(params), { sortBy: 'date', sortOrder: 'desc' });
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const response = await salesApi.getAll({ limit: '100', sortOrder: 'desc' });
+      const response = await salesApi.getSummary();
       if (response.success && response.data) {
-        setSales(response.data);
+        setSummary(response.data);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch sales',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // Summary cards fall back to dashes
     }
   };
+
+  useEffect(() => {
+    fetchSummary();
+  }, []);
 
   const handleDelete = async (sale: any) => {
     const confirmed = window.confirm(
@@ -70,7 +80,8 @@ export default function SalesPage() {
           title: 'Sale Deleted',
           description: `${sale.invoiceNumber} deleted and products restored`,
         });
-        await fetchSales();
+        await refetch();
+        await fetchSummary();
       }
     } catch (error: any) {
       toast({
@@ -82,21 +93,6 @@ export default function SalesPage() {
       setDeletingId(null);
     }
   };
-
-  useEffect(() => {
-    fetchSales();
-  }, []);
-
-  const filteredSales = sales.filter(
-    (sale) =>
-      sale.invoiceNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const activeSales = filteredSales.filter((s) => s.status !== 'cancelled');
-  const totalAmount = activeSales.reduce((sum, s) => sum + (s.amount || 0), 0);
-  const totalPaid = activeSales.reduce((sum, s) => sum + (s.paid || 0), 0);
-  const totalDue = totalAmount - totalPaid;
 
   return (
     <MainLayout>
@@ -112,32 +108,32 @@ export default function SalesPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Sales"
-            value={String(activeSales.length)}
+            value={summary ? String(summary.count || 0) : '-'}
             icon={ShoppingCart}
             theme="bg-gradient-to-br from-cyan-50 to-blue-100 text-cyan-900 ring-1 ring-cyan-100"
           />
           <SummaryStat
             label="Total Amount"
-            value={formatCurrency(totalAmount)}
+            value={summary ? formatCurrency(summary.totalSales || 0) : '-'}
             icon={DollarSign}
             theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="Collected"
-            value={formatCurrency(totalPaid)}
+            value={summary ? formatCurrency(summary.totalPaid || 0) : '-'}
             icon={Receipt}
             theme="bg-gradient-to-br from-violet-50 to-purple-100 text-violet-900 ring-1 ring-violet-100"
           />
           <SummaryStat
             label="Outstanding"
-            value={formatCurrency(totalDue)}
+            value={summary ? formatCurrency(summary.totalDue || 0) : '-'}
             icon={Wallet}
-            theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
+            theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-amber-100"
           />
         </div>
 
         <ColorCard
-          title="Sales List"
+          title={`Sales List${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-slate-50 via-blue-50/50 to-indigo-50/50 border-indigo-100/50 text-slate-800"
         >
           <div className="mb-4">
@@ -145,8 +141,8 @@ export default function SalesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by invoice or customer..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -158,9 +154,8 @@ export default function SalesPage() {
             </div>
           ) : (
             <>
-              {/* Mobile cards */}
               <div className="space-y-3 md:hidden">
-                {filteredSales.map((sale) => (
+                {sales.map((sale) => (
                   <div
                     key={sale._id}
                     className="rounded-2xl border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 p-4 shadow-sm"
@@ -218,14 +213,13 @@ export default function SalesPage() {
                     </div>
                   </div>
                 ))}
-                {filteredSales.length === 0 && (
+                {sales.length === 0 && (
                   <div className="rounded-2xl bg-slate-50 py-10 text-center text-slate-500 text-sm">
                     No sales found
                   </div>
                 )}
               </div>
 
-              {/* Desktop table */}
               <div className="hidden md:block overflow-x-auto rounded-xl ring-1 ring-slate-200/70">
                 <Table>
                   <TableHeader>
@@ -242,7 +236,7 @@ export default function SalesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSales.map((sale) => (
+                    {sales.map((sale) => (
                       <TableRow key={sale._id} className="hover:bg-blue-50/30">
                         <TableCell>
                           <Link
@@ -293,7 +287,7 @@ export default function SalesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredSales.length === 0 && (
+                    {sales.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-10 text-slate-500">
                           No sales found
@@ -303,6 +297,8 @@ export default function SalesPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

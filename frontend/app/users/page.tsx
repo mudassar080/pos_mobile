@@ -27,7 +27,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Plus, Search, Loader2, Edit, Trash2, Shield, UserCog } from 'lucide-react';
 import { usersApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { useAuth } from '@/lib/auth-context';
 import {
   UserFormDialog,
@@ -58,10 +61,12 @@ export default function UsersPage() {
   const { user: currentUser } = useAuth();
   const router = useRouter();
 
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<{
+    total: number;
+    superadmins: number;
+    active: number;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -69,41 +74,45 @@ export default function UsersPage() {
 
   const isSuperadmin = currentUser?.role === 'superadmin';
 
+  const {
+    items: users,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => usersApi.getAll(params), { enabled: isSuperadmin });
+
+  const fetchStats = async () => {
+    try {
+      const response = await usersApi.getAll(paginatedParams(500));
+      if (response.success && response.data) {
+        const data = response.data;
+        setStats({
+          total: response.pagination?.total ?? data.length,
+          superadmins: data.filter((u) => u.role === 'superadmin').length,
+          active: data.filter((u) => u.isActive !== false).length,
+        });
+      }
+    } catch {
+      // Stat cards fall back to dashes
+    }
+  };
+
   useEffect(() => {
     if (currentUser && !isSuperadmin) {
       router.replace('/dashboard');
     }
   }, [currentUser, isSuperadmin, router]);
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await usersApi.getAll();
-      if (response.success && response.data) {
-        setUsers(response.data);
-      }
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load users',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (isSuperadmin) {
-      fetchUsers();
+      fetchStats();
     }
   }, [isSuperadmin]);
-
-  const filteredUsers = users.filter(
-    (u) =>
-      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const openCreate = () => {
     setEditingUser(null);
@@ -178,7 +187,8 @@ export default function UsersPage() {
       }
 
       setDialogOpen(false);
-      await fetchUsers();
+      await refetch();
+      await fetchStats();
     } catch (error: any) {
       const message = error.message || 'Failed to save user';
       toast({
@@ -201,7 +211,8 @@ export default function UsersPage() {
       await usersApi.delete(deleteTarget._id);
       toast({ title: 'Deleted', description: 'User removed' });
       setDeleteTarget(null);
-      await fetchUsers();
+      await refetch();
+      await fetchStats();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -252,14 +263,14 @@ export default function UsersPage() {
           <Card className="rounded-2xl border-indigo-100 bg-gradient-to-br from-indigo-50 to-white">
             <CardContent className="pt-6">
               <p className="text-sm text-slate-600">Total users</p>
-              <p className="text-2xl font-bold text-slate-900">{users.length}</p>
+              <p className="text-2xl font-bold text-slate-900">{stats ? stats.total : '-'}</p>
             </CardContent>
           </Card>
           <Card className="rounded-2xl border-violet-100 bg-gradient-to-br from-violet-50 to-white">
             <CardContent className="pt-6">
               <p className="text-sm text-slate-600">Superadmins</p>
               <p className="text-2xl font-bold text-violet-700">
-                {users.filter((u) => u.role === 'superadmin').length}
+                {stats ? stats.superadmins : '-'}
               </p>
             </CardContent>
           </Card>
@@ -267,7 +278,7 @@ export default function UsersPage() {
             <CardContent className="pt-6">
               <p className="text-sm text-slate-600">Active</p>
               <p className="text-2xl font-bold text-emerald-700">
-                {users.filter((u) => u.isActive !== false).length}
+                {stats ? stats.active : '-'}
               </p>
             </CardContent>
           </Card>
@@ -277,14 +288,14 @@ export default function UsersPage() {
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-indigo-600" />
-              System users
+              System users{pagination.total ? ` (${pagination.total})` : ''}
             </CardTitle>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 placeholder="Search name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 rounded-xl"
               />
             </div>
@@ -295,18 +306,19 @@ export default function UsersPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((u) => (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((u) => (
                     <TableRow key={u._id}>
                       <TableCell className="font-medium">{u.name}</TableCell>
                       <TableCell>{u.email}</TableCell>
@@ -350,7 +362,7 @@ export default function UsersPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredUsers.length === 0 && (
+                  {users.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-10 text-slate-500">
                         No users found
@@ -359,6 +371,9 @@ export default function UsersPage() {
                   )}
                 </TableBody>
               </Table>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
+              </>
             )}
           </CardContent>
         </Card>

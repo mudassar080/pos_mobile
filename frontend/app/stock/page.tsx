@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { productsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -79,23 +81,29 @@ function getDisplayQty(product: any) {
 
 export default function StockPage() {
   const { toast } = useToast();
-  const [products, setProducts] = useState<any[]>([]);
   const [lowStock, setLowStock] = useState<any[]>([]);
   const [stockSummary, setStockSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [summaryLoading, setSummaryLoading] = useState(true);
 
-  const fetchStock = async () => {
+  const {
+    items: products,
+    loading,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+  } = usePaginatedList((params) => productsApi.getAll(params), { sortOrder: 'desc' });
+
+  const fetchSummaryData = async () => {
     try {
-      setLoading(true);
-      const [productsRes, lowStockRes, summaryRes] = await Promise.all([
-        productsApi.getAll({ limit: '500' }),
+      setSummaryLoading(true);
+      const [lowStockRes, summaryRes] = await Promise.all([
         productsApi.getLowStock(),
         productsApi.getStockSummary(),
       ]);
-      if (productsRes.success && productsRes.data) {
-        setProducts(productsRes.data);
-      }
       if (lowStockRes.success && lowStockRes.data) {
         setLowStock(lowStockRes.data);
       }
@@ -109,21 +117,13 @@ export default function StockPage() {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setSummaryLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStock();
+    fetchSummaryData();
   }, []);
-
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.imei?.includes(searchTerm) ||
-      p.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <MainLayout>
@@ -138,31 +138,31 @@ export default function StockPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Phones Available"
-            value={loading ? '-' : String(stockSummary?.phones?.available || 0)}
+            value={summaryLoading ? '-' : String(stockSummary?.phones?.available || 0)}
             icon={Smartphone}
             theme="bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-900 ring-1 ring-blue-100"
           />
           <SummaryStat
             label="Accessories Stock"
-            value={loading ? '-' : String(stockSummary?.accessories?.totalQuantity || 0)}
+            value={summaryLoading ? '-' : String(stockSummary?.accessories?.totalQuantity || 0)}
             icon={Package}
             theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="Stock Value"
-            value={loading ? '-' : formatCurrency(stockSummary?.totalValue || 0)}
+            value={summaryLoading ? '-' : formatCurrency(stockSummary?.totalValue || 0)}
             icon={DollarSign}
             theme="bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-900 ring-1 ring-teal-100"
           />
           <SummaryStat
             label="Low Stock Items"
-            value={loading ? '-' : String(lowStock.length)}
+            value={summaryLoading ? '-' : String(lowStock.length)}
             icon={AlertTriangle}
             theme="bg-gradient-to-br from-orange-50 to-amber-100 text-orange-900 ring-1 ring-orange-100"
           />
         </div>
 
-        {!loading && stockSummary?.totalSellingValue != null && (
+        {!summaryLoading && stockSummary?.totalSellingValue != null && (
           <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-4 py-2 text-sm text-teal-800 ring-1 ring-teal-100">
             <Warehouse className="h-4 w-4" />
             Sale value:{' '}
@@ -175,7 +175,7 @@ export default function StockPage() {
           </div>
         )}
 
-        {!loading && lowStock.length > 0 && (
+        {!summaryLoading && lowStock.length > 0 && (
           <div className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50/80 p-4 flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
             <div>
@@ -194,7 +194,7 @@ export default function StockPage() {
         )}
 
         <ColorCard
-          title={`Stock Inventory (${filteredProducts.length})`}
+          title={`Stock Inventory${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-teal-50 via-emerald-50 to-green-50 border-emerald-100/50 text-emerald-900"
         >
           <div className="mb-4">
@@ -202,8 +202,8 @@ export default function StockPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by name, IMEI, brand, category..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -216,7 +216,7 @@ export default function StockPage() {
           ) : (
             <>
               <div className="space-y-3 md:hidden">
-                {filteredProducts.map((product) => {
+                {products.map((product) => {
                   const qty = getDisplayQty(product);
                   const isLow = !product.imei && (product.quantity || 0) <= 5;
 
@@ -265,7 +265,7 @@ export default function StockPage() {
                     </div>
                   );
                 })}
-                {filteredProducts.length === 0 && (
+                {products.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No products found</p>
                 )}
               </div>
@@ -286,7 +286,7 @@ export default function StockPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredProducts.map((product) => {
+                    {products.map((product) => {
                       const qty = getDisplayQty(product);
                       const isLow = !product.imei && (product.quantity || 0) <= 5;
 
@@ -322,7 +322,7 @@ export default function StockPage() {
                         </TableRow>
                       );
                     })}
-                    {filteredProducts.length === 0 && (
+                    {products.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-8 text-slate-500">
                           No products found
@@ -332,6 +332,8 @@ export default function StockPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

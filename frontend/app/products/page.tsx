@@ -39,6 +39,8 @@ import { formatCurrency } from '@/utils/constant';
 import { productsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import {
   ColorCard,
   NewProductButton,
@@ -74,11 +76,10 @@ function ProfitIndicator({ profit }: { profit: number | null }) {
 export default function ProductsPage() {
   const { toast } = useToast();
   const { canEdit, canDelete } = usePermissions();
-  const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stockSummary, setStockSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -91,21 +92,27 @@ export default function ProductsPage() {
     model: '',
   });
 
-  const fetchProducts = async () => {
+  const {
+    items: products,
+    loading,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => productsApi.getAll(params), { sortOrder: 'desc' });
+
+  const fetchStockSummary = async () => {
     try {
-      setLoading(true);
-      const response = await productsApi.getAll({ limit: '100' });
+      const response = await productsApi.getStockSummary();
       if (response.success && response.data) {
-        setProducts(response.data);
+        setStockSummary(response.data);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch products',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // Summary cards fall back to dashes
     }
   };
 
@@ -121,23 +128,11 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
-    fetchProducts();
-    fetchCategories();
+    setSummaryLoading(true);
+    Promise.all([fetchStockSummary(), fetchCategories()]).finally(() => {
+      setSummaryLoading(false);
+    });
   }, []);
-
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalStock = products.reduce((sum, p) => sum + (p.quantity ?? 0), 0);
-  const inStockCount = products.filter((p) => (p.quantity ?? 0) > 0).length;
-  const pricedCount = products.filter(
-    (p) => p.sellingPrice != null && p.sellingPrice > 0
-  ).length;
 
   const handleOpenAddDialog = () => {
     setEditingProduct(null);
@@ -193,7 +188,8 @@ export default function ProductsPage() {
 
       setShowAddDialog(false);
       setEditingProduct(null);
-      fetchProducts();
+      await refetch();
+      await fetchStockSummary();
       fetchCategories();
     } catch (error: any) {
       toast({
@@ -213,7 +209,8 @@ export default function ProductsPage() {
       await productsApi.delete(deleteTarget.id);
       toast({ title: 'Success', description: 'Product deleted successfully' });
       setDeleteTarget(null);
-      fetchProducts();
+      await refetch();
+      await fetchStockSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -243,25 +240,25 @@ export default function ProductsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Products"
-            value={loading ? '-' : String(products.length)}
+            value={loading ? '-' : String(pagination.total || 0)}
             icon={Package}
             theme="bg-gradient-to-br from-sky-50 to-cyan-100 text-sky-900 ring-1 ring-sky-100"
           />
           <SummaryStat
             label="Total Stock"
-            value={loading ? '-' : String(totalStock)}
+            value={summaryLoading ? '-' : String(stockSummary?.totalItems ?? 0)}
             icon={Boxes}
             theme="bg-gradient-to-br from-cyan-50 to-teal-100 text-cyan-900 ring-1 ring-cyan-100"
           />
           <SummaryStat
             label="In Stock"
-            value={loading ? '-' : String(inStockCount)}
+            value={summaryLoading ? '-' : String(stockSummary?.phones?.available ?? 0)}
             icon={TrendingUp}
             theme="bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="With Sale Price"
-            value={loading ? '-' : String(pricedCount)}
+            value={summaryLoading ? '-' : '-'}
             icon={DollarSign}
             theme="bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-900 ring-1 ring-teal-100"
           />
@@ -275,7 +272,7 @@ export default function ProductsPage() {
         )}
 
         <ColorCard
-          title="Product List"
+          title={`Product List${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-sky-50 via-cyan-50 to-teal-50 border-cyan-100/50 text-cyan-900"
         >
           <div className="mb-4">
@@ -283,8 +280,8 @@ export default function ProductsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by name, brand, model..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -297,7 +294,7 @@ export default function ProductsPage() {
           ) : (
             <>
               <div className="space-y-3 md:hidden">
-                {filteredProducts.map((product) => {
+                {products.map((product) => {
                   const hasSellingPrice =
                     product.sellingPrice != null && product.sellingPrice > 0;
                   const profit = hasSellingPrice
@@ -374,7 +371,7 @@ export default function ProductsPage() {
                     </div>
                   );
                 })}
-                {filteredProducts.length === 0 && (
+                {products.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No products found</p>
                 )}
               </div>
@@ -396,7 +393,7 @@ export default function ProductsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredProducts.map((product) => {
+                    {products.map((product) => {
                       const hasSellingPrice =
                         product.sellingPrice != null && product.sellingPrice > 0;
                       const profit = hasSellingPrice
@@ -466,7 +463,7 @@ export default function ProductsPage() {
                         </TableRow>
                       );
                     })}
-                    {filteredProducts.length === 0 && (
+                    {products.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={canEdit || canDelete ? 10 : 9} className="text-center py-8 text-slate-500">
                           No products found
@@ -476,6 +473,8 @@ export default function ProductsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

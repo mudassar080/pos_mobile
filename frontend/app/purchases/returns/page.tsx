@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,49 +47,41 @@ import {
 
 export default function PurchaseReturnsPage() {
   const { toast } = useToast();
-  const [returns, setReturns] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<any>(null);
 
-  const fetchReturns = async () => {
+  const {
+    items: returns,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => purchaseReturnsApi.getAll(params), {
+    sortBy: 'date',
+    sortOrder: 'desc',
+  });
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const [returnsRes, summaryRes] = await Promise.all([
-        purchaseReturnsApi.getAll({ limit: '100', sortOrder: 'desc' }),
-        purchaseReturnsApi.getSummary(),
-      ]);
-      if (returnsRes.success && returnsRes.data) {
-        setReturns(returnsRes.data);
-      }
+      const summaryRes = await purchaseReturnsApi.getSummary();
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch purchase returns',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // Summary cards fall back to dashes
     }
   };
 
   useEffect(() => {
-    fetchReturns();
+    fetchSummary();
   }, []);
-
-  const filteredReturns = returns.filter(
-    (ret) =>
-      ret.returnNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ret.purchaseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ret.supplierName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleDeleteReturn = async () => {
     if (!selectedReturn) return;
@@ -101,7 +95,8 @@ export default function PurchaseReturnsPage() {
       });
       setShowDeleteDialog(false);
       setSelectedReturn(null);
-      fetchReturns();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -127,25 +122,25 @@ export default function PurchaseReturnsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Returns"
-            value={loading ? '-' : String(summary?.totalReturns || 0)}
+            value={summary ? String(summary.totalReturns || 0) : '-'}
             icon={RotateCcw}
             theme="bg-gradient-to-br from-violet-50 to-purple-100 text-violet-900 ring-1 ring-violet-100"
           />
           <SummaryStat
             label="This Month"
-            value={loading ? '-' : String(summary?.thisMonthReturns || 0)}
+            value={summary ? String(summary.thisMonthReturns || 0) : '-'}
             icon={CalendarDays}
             theme="bg-gradient-to-br from-purple-50 to-fuchsia-100 text-purple-900 ring-1 ring-purple-100"
           />
           <SummaryStat
             label="Total Value"
-            value={loading ? '-' : formatCurrency(summary?.totalAmount || 0)}
+            value={summary ? formatCurrency(summary.totalAmount || 0) : '-'}
             icon={DollarSign}
             theme="bg-gradient-to-br from-fuchsia-50 to-pink-100 text-fuchsia-900 ring-1 ring-fuchsia-100"
           />
         </div>
 
-        {!loading && summary?.byReason?.[0] && (
+        {summary?.byReason?.[0] && (
           <div className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-4 py-2 text-sm text-violet-800 ring-1 ring-violet-100">
             <Tag className="h-4 w-4" />
             Top reason: <strong>{summary.byReason[0]._id}</strong> ({summary.byReason[0].count}{' '}
@@ -154,7 +149,7 @@ export default function PurchaseReturnsPage() {
         )}
 
         <ColorCard
-          title="Returns History"
+          title={`Returns History${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-violet-50 via-purple-50 to-fuchsia-50 border-violet-100/50 text-violet-900"
         >
           <div className="mb-4">
@@ -162,8 +157,8 @@ export default function PurchaseReturnsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search returns..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -176,7 +171,7 @@ export default function PurchaseReturnsPage() {
           ) : (
             <>
               <div className="space-y-3 md:hidden">
-                {filteredReturns.map((ret) => (
+                {returns.map((ret) => (
                   <div
                     key={ret._id}
                     className="rounded-2xl border border-violet-100/80 bg-gradient-to-br from-white to-violet-50/30 p-4 shadow-sm"
@@ -234,7 +229,7 @@ export default function PurchaseReturnsPage() {
                     </div>
                   </div>
                 ))}
-                {filteredReturns.length === 0 && (
+                {returns.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No purchase returns found</p>
                 )}
               </div>
@@ -255,7 +250,7 @@ export default function PurchaseReturnsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredReturns.map((ret) => (
+                    {returns.map((ret) => (
                       <TableRow key={ret._id} className="hover:bg-violet-50/20">
                         <TableCell className="font-medium text-violet-900">
                           {ret.returnNumber}
@@ -301,7 +296,7 @@ export default function PurchaseReturnsPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredReturns.length === 0 && (
+                    {returns.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-8 text-slate-500">
                           No purchase returns found
@@ -311,6 +306,8 @@ export default function PurchaseReturnsPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

@@ -1,15 +1,18 @@
 const Supplier = require('../models/Supplier');
 const Customer = require('../models/Customer');
 const Purchase = require('../models/Purchase');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all suppliers
 // @route   GET /api/suppliers
 // @access  Public
 const getSuppliers = async (req, res) => {
   try {
+    const paging = parsePagination(req, res);
+    if (!paging) return;
+
+    const { page, limit, skip } = paging;
     const {
-      page = 1,
-      limit = 10,
       search,
       isActive,
       hasOutstanding,
@@ -35,14 +38,13 @@ const getSuppliers = async (req, res) => {
       query.outstanding = { $gt: 0 };
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const sort = {};
     sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
     const suppliers = await Supplier.find(query)
       .sort(sort)
       .skip(skip)
-      .limit(parseInt(limit))
+      .limit(limit)
       .populate('linkedCustomer', 'name phone outstanding');
 
     const total = await Supplier.countDocuments(query);
@@ -50,12 +52,7 @@ const getSuppliers = async (req, res) => {
     res.status(200).json({
       success: true,
       data: suppliers,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
-      },
+      pagination: buildPaginationMeta(page, limit, total),
     });
   } catch (error) {
     res.status(500).json({

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -61,43 +63,35 @@ interface Summary {
 
 export default function PayablesPage() {
   const { toast } = useToast();
-  const [payables, setPayables] = useState<Payable[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedPayable, setSelectedPayable] = useState<Payable | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const fetchPayables = async () => {
-    try {
-      setLoading(true);
-      const response: any = await purchasesApi.getPayables();
-      if (response.success) {
-        setPayables(response.data || []);
-        setSummary(response.summary || null);
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch payables',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+  const fetchPayables = useCallback(async (params: Record<string, string>) => {
+    const response: any = await purchasesApi.getPayables(params);
+    if (response.success && response.summary) {
+      setSummary(response.summary);
     }
-  };
-
-  useEffect(() => {
-    fetchPayables();
+    return {
+      success: response.success,
+      data: response.data,
+      pagination: response.pagination,
+    };
   }, []);
 
-  const filteredPayables = payables.filter(
-    (p) =>
-      p.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.purchase?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const {
+    items: payables,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList<Payable>(fetchPayables, { sortBy: 'date', sortOrder: 'desc' });
 
   const openPayment = (item: Payable) => {
     setSelectedPayable(item);
@@ -125,7 +119,7 @@ export default function PayablesPage() {
       setShowPaymentDialog(false);
       setSelectedPayable(null);
       setPaymentAmount('');
-      fetchPayables();
+      await refetch();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -162,38 +156,38 @@ export default function PayablesPage() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Payables"
-            value={loading ? '-' : formatCurrency(summary?.totalPayables || 0)}
+            value={summary ? formatCurrency(summary.totalPayables) : '-'}
             icon={Wallet}
             theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
           />
           <SummaryStat
             label="0-30 Days"
-            value={loading ? '-' : formatCurrency(summary?.aging0to30 || 0)}
+            value={summary ? formatCurrency(summary.aging0to30) : '-'}
             icon={Clock}
             theme="bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="30-60 Days"
-            value={loading ? '-' : formatCurrency(summary?.aging30to60 || 0)}
+            value={summary ? formatCurrency(summary.aging30to60) : '-'}
             icon={Clock}
             theme="bg-gradient-to-br from-amber-50 to-orange-100 text-amber-900 ring-1 ring-amber-100"
           />
           <SummaryStat
             label="60+ Days"
-            value={loading ? '-' : formatCurrency(summary?.aging60plus || 0)}
+            value={summary ? formatCurrency(summary.aging60plus) : '-'}
             icon={AlertTriangle}
             theme="bg-gradient-to-br from-red-50 to-rose-100 text-red-900 ring-1 ring-red-100"
           />
           <SummaryStat
             label="Suppliers"
-            value={loading ? '-' : String(summary?.totalSuppliers || 0)}
+            value={summary ? String(summary.totalSuppliers) : '-'}
             icon={Building2}
             theme="bg-gradient-to-br from-pink-50 to-rose-100 text-pink-900 ring-1 ring-pink-100"
           />
         </div>
 
         <ColorCard
-          title="Payables Details"
+          title={`Payables Details${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-red-50 via-rose-50 to-pink-50 border-rose-100/50 text-rose-900"
         >
           <div className="mb-4">
@@ -201,8 +195,8 @@ export default function PayablesPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by supplier or purchase..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -215,7 +209,7 @@ export default function PayablesPage() {
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredPayables.map((item) => (
+                {payables.map((item) => (
                   <div
                     key={item._id}
                     className="rounded-2xl border border-rose-100/80 bg-gradient-to-br from-white to-rose-50/30 p-4 shadow-sm"
@@ -256,7 +250,7 @@ export default function PayablesPage() {
                     </div>
                   </div>
                 ))}
-                {filteredPayables.length === 0 && (
+                {payables.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No payables found</p>
                 )}
               </div>
@@ -277,7 +271,7 @@ export default function PayablesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredPayables.map((item) => (
+                    {payables.map((item) => (
                       <TableRow key={item._id} className="hover:bg-rose-50/20">
                         <TableCell className="font-medium text-rose-900">
                           {item.supplier}
@@ -303,7 +297,7 @@ export default function PayablesPage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredPayables.length === 0 && (
+                    {payables.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center py-8 text-slate-500">
                           No payables found
@@ -313,6 +307,8 @@ export default function PayablesPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

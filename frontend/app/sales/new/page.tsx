@@ -33,6 +33,7 @@ import { Plus, Trash2, Save, User, Loader2, Package, ShoppingBag, CreditCard } f
 import { useRouter } from 'next/navigation';
 import { formatCurrency, PAYMENT_MODES } from '@/utils/constant';
 import { productsApi, customersApi, salesApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ColorCard, SalesPageHero, SummaryStat } from '@/components/sales/sales-ui';
@@ -88,8 +89,8 @@ export default function NewSalePage() {
   const fetchData = async () => {
     try {
       const [productsRes, customersRes] = await Promise.all([
-        productsApi.getAll({ limit: '500' }),
-        customersApi.getAll({ limit: '100' }),
+        productsApi.getAll(paginatedParams(500)),
+        customersApi.getAll(paginatedParams(100)),
       ]);
       if (productsRes.success && productsRes.data) {
         // Filter to only show available products for sale

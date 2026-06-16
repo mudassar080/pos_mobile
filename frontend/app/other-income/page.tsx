@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -43,48 +45,40 @@ const defaultForm = (): IncomeFormData => ({
 
 export default function OtherIncomePage() {
   const { toast } = useToast();
-  const [incomes, setIncomes] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showAddIncome, setShowAddIncome] = useState(false);
   const [formData, setFormData] = useState<IncomeFormData>(defaultForm());
 
-  const fetchIncomes = async () => {
+  const {
+    items: incomes,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => otherIncomeApi.getAll(params), {
+    sortBy: 'date',
+    sortOrder: 'desc',
+  });
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const [incomesRes, summaryRes] = await Promise.all([
-        otherIncomeApi.getAll({ limit: '100', sortOrder: 'desc' }),
-        otherIncomeApi.getSummary(),
-      ]);
-      if (incomesRes.success && incomesRes.data) {
-        setIncomes(incomesRes.data);
-      }
+      const summaryRes = await otherIncomeApi.getSummary();
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch other income',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+    } catch {
+      // ignore
     }
   };
 
   useEffect(() => {
-    fetchIncomes();
+    fetchSummary();
   }, []);
-
-  const filteredIncomes = incomes.filter(
-    (i) =>
-      i.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      i.paymentMode?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleOpenAdd = () => {
     setFormData(defaultForm());
@@ -111,7 +105,8 @@ export default function OtherIncomePage() {
       toast({ title: 'Success', description: 'Income added successfully' });
       setShowAddIncome(false);
       setFormData(defaultForm());
-      fetchIncomes();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -150,25 +145,25 @@ export default function OtherIncomePage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="This Month"
-            value={loading ? '-' : formatCurrency(summary?.totalIncome || 0)}
+            value={summary ? formatCurrency(summary.totalIncome || 0) : '-'}
             icon={TrendingUp}
             theme="bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100"
           />
           <SummaryStat
             label="Transactions"
-            value={loading ? '-' : String(summary?.totalCount || 0)}
+            value={summary ? String(summary.totalCount || 0) : '-'}
             icon={Hash}
             theme="bg-gradient-to-br from-teal-50 to-cyan-100 text-teal-900 ring-1 ring-teal-100"
           />
           <SummaryStat
             label="Top Category"
-            value={loading ? '-' : topCategory?._id || '—'}
+            value={summary ? topCategory?._id || '—' : '-'}
             icon={Tag}
             theme="bg-gradient-to-br from-green-50 to-emerald-100 text-green-900 ring-1 ring-green-100"
           />
           <SummaryStat
             label="Top Amount"
-            value={loading ? '-' : formatCurrency(topCategory?.total || 0)}
+            value={summary ? formatCurrency(topCategory?.total || 0) : '-'}
             icon={TrendingUp}
             theme="bg-gradient-to-br from-lime-50 to-green-100 text-lime-900 ring-1 ring-lime-100"
           />
@@ -194,7 +189,7 @@ export default function OtherIncomePage() {
         )}
 
         <ColorCard
-          title="Recent Income"
+          title={`Recent Income${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 border-emerald-100/50 text-emerald-900"
         >
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -202,8 +197,8 @@ export default function OtherIncomePage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search category, description, payment..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -217,7 +212,7 @@ export default function OtherIncomePage() {
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredIncomes.map((income) => (
+                {incomes.map((income) => (
                   <div
                     key={income._id}
                     className="rounded-2xl border border-emerald-100/80 bg-gradient-to-br from-white to-emerald-50/30 p-4 shadow-sm"
@@ -240,7 +235,7 @@ export default function OtherIncomePage() {
                     </div>
                   </div>
                 ))}
-                {filteredIncomes.length === 0 && (
+                {incomes.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No income found</p>
                 )}
               </div>
@@ -257,7 +252,7 @@ export default function OtherIncomePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredIncomes.map((income) => (
+                    {incomes.map((income) => (
                       <TableRow key={income._id} className="hover:bg-emerald-50/20">
                         <TableCell>{formatAccountingDate(income.date)}</TableCell>
                         <TableCell>
@@ -278,7 +273,7 @@ export default function OtherIncomePage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredIncomes.length === 0 && (
+                    {incomes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                           No income found
@@ -288,6 +283,8 @@ export default function OtherIncomePage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>

@@ -38,7 +38,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { suppliersApi, customersApi } from '@/lib/api';
+import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
+import { usePaginatedList } from '@/hooks/use-paginated-list';
+import { ListPagination } from '@/components/ui/list-pagination';
 import { formatCurrency } from '@/utils/constant';
 import {
   ColorCard,
@@ -183,12 +186,10 @@ function SupplierActions({
 
 export default function SuppliersPage() {
   const { toast } = useToast();
-  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [allSuppliersForLink, setAllSuppliersForLink] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [showEditSupplier, setShowEditSupplier] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -206,43 +207,50 @@ export default function SuppliersPage() {
     address: '',
   });
 
-  const fetchData = async () => {
+  const {
+    items: suppliers,
+    loading,
+    setPage,
+    pageSize,
+    setPageSize,
+    pagination,
+    search,
+    setSearch,
+    refetch,
+  } = usePaginatedList((params) => suppliersApi.getAll(params));
+
+  const fetchSummary = async () => {
     try {
-      setLoading(true);
-      const [suppliersRes, summaryRes, customersRes] = await Promise.all([
-        suppliersApi.getAll({ limit: '100' }),
-        suppliersApi.getSummary(),
-        customersApi.getAll({ limit: '100' }),
+      const response = await suppliersApi.getSummary();
+      if (response.success && response.data) {
+        setSummary(response.data);
+      }
+    } catch {
+      // Summary cards fall back to dashes
+    }
+  };
+
+  const fetchLinkData = async () => {
+    try {
+      const [customersRes, suppliersRes] = await Promise.all([
+        customersApi.getAll(paginatedParams(500)),
+        suppliersApi.getAll(paginatedParams(500)),
       ]);
-      if (suppliersRes.success && suppliersRes.data) {
-        setSuppliers(suppliersRes.data as any[]);
-      }
-      if (summaryRes.success && summaryRes.data) {
-        setSummary(summaryRes.data);
-      }
       if (customersRes.success && customersRes.data) {
         setCustomers(customersRes.data as any[]);
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch data',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      if (suppliersRes.success && suppliersRes.data) {
+        setAllSuppliersForLink(suppliersRes.data as any[]);
+      }
+    } catch {
+      // Link dialog falls back to empty lists
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchSummary();
+    fetchLinkData();
   }, []);
-
-  const filteredSuppliers = suppliers.filter(
-    (supplier) =>
-      supplier.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.phone?.includes(searchTerm)
-  );
 
   const resetForm = () => {
     setFormData({ name: '', phone: '', email: '', address: '' });
@@ -269,7 +277,8 @@ export default function SuppliersPage() {
       toast({ title: 'Success', description: 'Supplier created successfully' });
       setShowAddSupplier(false);
       resetForm();
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -309,7 +318,8 @@ export default function SuppliersPage() {
       setShowEditSupplier(false);
       setSelectedSupplier(null);
       resetForm();
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -330,7 +340,8 @@ export default function SuppliersPage() {
       toast({ title: 'Success', description: 'Supplier deleted successfully' });
       setShowDeleteDialog(false);
       setSelectedSupplier(null);
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -359,7 +370,8 @@ export default function SuppliersPage() {
       setShowPayment(false);
       setPaymentAmount('');
       setSelectedSupplier(null);
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -390,7 +402,8 @@ export default function SuppliersPage() {
       setShowLinkDialog(false);
       setSelectedCustomerId('');
       setSelectedSupplier(null);
-      fetchData();
+      await refetch();
+      await fetchLinkData();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -414,7 +427,8 @@ export default function SuppliersPage() {
       });
       setShowSettleDialog(false);
       setSelectedSupplier(null);
-      fetchData();
+      await refetch();
+      await fetchSummary();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -427,7 +441,7 @@ export default function SuppliersPage() {
   };
 
   const getAvailableCustomers = () => {
-    const linkedCustomerIds = suppliers
+    const linkedCustomerIds = allSuppliersForLink
       .filter((s) => s.linkedCustomer && s._id !== selectedSupplier?._id)
       .map((s) =>
         typeof s.linkedCustomer === 'object' ? s.linkedCustomer._id : s.linkedCustomer
@@ -449,32 +463,32 @@ export default function SuppliersPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryStat
             label="Total Suppliers"
-            value={loading ? '-' : String(summary?.totalSuppliers || suppliers.length)}
+            value={summary ? String(summary.totalSuppliers || 0) : '-'}
             icon={Building2}
             theme="bg-gradient-to-br from-fuchsia-50 to-purple-100 text-fuchsia-900 ring-1 ring-fuchsia-100"
           />
           <SummaryStat
             label="Total Payables"
-            value={loading ? '-' : formatCurrency(summary?.totalPayables || 0)}
+            value={summary ? formatCurrency(summary.totalPayables || 0) : '-'}
             icon={Wallet}
             theme="bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100"
           />
           <SummaryStat
             label="With Credit"
-            value={loading ? '-' : String(summary?.suppliersWithCredit || 0)}
+            value={summary ? String(summary.suppliersWithCredit || 0) : '-'}
             icon={CreditCard}
             theme="bg-gradient-to-br from-purple-50 to-violet-100 text-purple-900 ring-1 ring-purple-100"
           />
           <SummaryStat
             label="Purchase Value"
-            value={loading ? '-' : formatCurrency(summary?.totalPurchaseValue || 0)}
+            value={summary ? formatCurrency(summary.totalPurchaseValue || 0) : '-'}
             icon={TrendingUp}
             theme="bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-900 ring-1 ring-violet-100"
           />
         </div>
 
         <ColorCard
-          title="Supplier List"
+          title={`Supplier List${pagination.total ? ` (${pagination.total})` : ''}`}
           headerClassName="bg-gradient-to-r from-fuchsia-50 via-purple-50 to-violet-50 border-purple-100/50 text-purple-900"
         >
           <div className="mb-4">
@@ -482,8 +496,8 @@ export default function SuppliersPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
                 placeholder="Search by name or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 rounded-xl border-slate-200 bg-slate-50/50 focus:bg-white"
               />
             </div>
@@ -496,7 +510,7 @@ export default function SuppliersPage() {
           ) : (
             <>
               <div className="space-y-3 lg:hidden">
-                {filteredSuppliers.map((supplier) => {
+                {suppliers.map((supplier) => {
                   const linked = supplier.linkedCustomer;
                   const payable = supplier.outstanding || 0;
                   const receivable = linked?.outstanding || 0;
@@ -571,7 +585,7 @@ export default function SuppliersPage() {
                     </div>
                   );
                 })}
-                {filteredSuppliers.length === 0 && (
+                {suppliers.length === 0 && (
                   <p className="text-center py-8 text-slate-500">No suppliers found</p>
                 )}
               </div>
@@ -590,7 +604,7 @@ export default function SuppliersPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSuppliers.map((supplier) => {
+                    {suppliers.map((supplier) => {
                       const linked = supplier.linkedCustomer;
                       const payable = supplier.outstanding || 0;
                       const receivable = linked?.outstanding || 0;
@@ -654,7 +668,7 @@ export default function SuppliersPage() {
                         </TableRow>
                       );
                     })}
-                    {filteredSuppliers.length === 0 && (
+                    {suppliers.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-slate-500">
                           No suppliers found
@@ -664,6 +678,8 @@ export default function SuppliersPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <ListPagination pagination={pagination} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} />
             </>
           )}
         </ColorCard>
