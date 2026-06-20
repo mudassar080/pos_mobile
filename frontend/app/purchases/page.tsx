@@ -63,6 +63,7 @@ import {
   NewPurchaseButton,
   PURCHASE_GRADIENT,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/purchases/purchases-ui';
 
@@ -141,7 +142,7 @@ export default function PurchasesPage() {
           actions={<NewPurchaseButton />}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Purchases"
             value={summary ? String(summary.count || 0) : '-'}

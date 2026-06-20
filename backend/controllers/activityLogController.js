@@ -1,5 +1,6 @@
 const ActivityLog = require('../models/ActivityLog');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
+const { getRetentionCutoff } = require('../utils/cleanupActivityLogs');
 
 // @desc    List activity logs
 // @route   GET /api/activity-logs
@@ -20,6 +21,7 @@ const getActivityLogs = async (req, res) => {
     } = req.query;
 
     const query = {};
+    const retentionCutoff = getRetentionCutoff();
 
     if (search) {
       query.$or = [
@@ -36,8 +38,14 @@ const getActivityLogs = async (req, res) => {
 
     if (startDate || endDate) {
       query.createdAt = {};
-      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (startDate) {
+        query.createdAt.$gte = new Date(Math.max(new Date(startDate), retentionCutoff));
+      } else {
+        query.createdAt.$gte = retentionCutoff;
+      }
       if (endDate) query.createdAt.$lte = new Date(endDate);
+    } else {
+      query.createdAt = { $gte: retentionCutoff };
     }
 
     const [logs, total] = await Promise.all([

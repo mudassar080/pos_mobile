@@ -29,7 +29,7 @@ import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, REFUND_METHODS } from '@/utils/constant';
 import { cn } from '@/lib/utils';
-import { ColorCard, SalesPageHero, SummaryStat } from '@/components/sales/sales-ui';
+import { ColorCard, SalesPageHero, STAT_GRID_CLASS, SummaryStat } from '@/components/sales/sales-ui';
 
 const reasons = ['Defective', 'Wrong Item', 'Not Satisfied', 'Damaged', 'Other'];
 const conditions = ['resellable', 'damaged'];
@@ -222,7 +222,7 @@ export default function NewSalesReturnPage() {
           backHref="/sales/returns"
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Selected Items"
             value={String(selectedItems.length)}

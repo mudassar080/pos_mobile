@@ -31,6 +31,7 @@ import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { usePaginatedList } from '@/hooks/use-paginated-list';
 import { ListPagination } from '@/components/ui/list-pagination';
+import { FitValue, STAT_GRID_CLASS } from '@/components/ui/stat-cards';
 import { useAuth } from '@/lib/auth-context';
 import {
   UserFormDialog,
@@ -259,27 +260,29 @@ export default function UsersPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="rounded-2xl border-indigo-100 bg-gradient-to-br from-indigo-50 to-white">
+        <div className={STAT_GRID_CLASS}>
+          <Card className="rounded-2xl border-indigo-100 bg-gradient-to-br from-indigo-50 to-white min-w-0">
             <CardContent className="pt-6">
               <p className="text-sm text-slate-600">Total users</p>
-              <p className="text-2xl font-bold text-slate-900">{stats ? stats.total : '-'}</p>
+              <FitValue value={stats ? String(stats.total) : '-'} className="text-slate-900" />
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border-violet-100 bg-gradient-to-br from-violet-50 to-white">
+          <Card className="rounded-2xl border-violet-100 bg-gradient-to-br from-violet-50 to-white min-w-0">
             <CardContent className="pt-6">
               <p className="text-sm text-slate-600">Superadmins</p>
-              <p className="text-2xl font-bold text-violet-700">
-                {stats ? stats.superadmins : '-'}
-              </p>
+              <FitValue
+                value={stats ? String(stats.superadmins) : '-'}
+                className="text-violet-700"
+              />
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border-emerald-100 bg-gradient-to-br from-emerald-50 to-white">
+          <Card className="rounded-2xl border-emerald-100 bg-gradient-to-br from-emerald-50 to-white min-w-0">
             <CardContent className="pt-6">
               <p className="text-sm text-slate-600">Active</p>
-              <p className="text-2xl font-bold text-emerald-700">
-                {stats ? stats.active : '-'}
-              </p>
+              <FitValue
+                value={stats ? String(stats.active) : '-'}
+                className="text-emerald-700"
+              />
             </CardContent>
           </Card>
         </div>

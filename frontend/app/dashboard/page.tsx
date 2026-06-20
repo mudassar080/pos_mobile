@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { MainLayout } from '@/components/layout/main-layout';
 import { ColorCard } from '@/components/sales/sales-ui';
+import { FitValue, STAT_GRID_CLASS } from '@/components/ui/stat-cards';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -170,7 +171,7 @@ function StatCard({ href, title, value, subtitle, icon: Icon, theme, valueClassN
   const t = CARD_THEMES[theme] as CardTheme;
 
   return (
-    <Link href={href} className="block group">
+    <Link href={href} className="block group min-w-0">
       <div
         className={cn(
           'relative h-full overflow-hidden rounded-2xl p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl',
@@ -185,10 +186,8 @@ function StatCard({ href, title, value, subtitle, icon: Icon, theme, valueClassN
             <p className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-slate-600/80">
               {title}
             </p>
-            <p className={cn('mt-2 text-xl sm:text-2xl font-bold tracking-tight truncate', valueClassName || t.value)}>
-              {value}
-            </p>
-            <p className={cn('mt-1.5 text-xs line-clamp-2', t.subtitle)}>{subtitle}</p>
+            <FitValue value={value} className={cn('mt-2', valueClassName || t.value)} />
+            <p className={cn('mt-1.5 text-xs break-words', t.subtitle)}>{subtitle}</p>
           </div>
           <div className={cn('rounded-xl p-2.5 shrink-0', t.iconWrap)}>
             <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', t.iconColor)} />
@@ -232,12 +231,12 @@ function DashboardSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
       <div className="h-36 rounded-3xl bg-gradient-to-r from-indigo-200 via-violet-200 to-fuchsia-200" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div className={STAT_GRID_CLASS}>
         {skeletonColors.map((color, i) => (
           <div key={i} className={cn('h-32 rounded-2xl bg-gradient-to-br', color)} />
         ))}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+      <div className={STAT_GRID_CLASS}>
         {skeletonColors.map((color, i) => (
           <div key={i} className={cn('h-28 rounded-2xl bg-gradient-to-br', color)} />
         ))}
@@ -482,26 +481,24 @@ export default function DashboardPage() {
 
           {/* Hero highlight stats */}
           <div className="relative mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur-md ring-1 ring-white/20">
+            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur-md ring-1 ring-white/20 min-w-0">
               <p className="text-xs font-medium text-indigo-100 uppercase tracking-wide">
                 {hasDateFilter ? 'Selected Sales' : "Today's Revenue"}
               </p>
-              <p className="mt-1 text-2xl sm:text-3xl font-bold">{formatCurrency(todaySales)}</p>
+              <FitValue value={formatCurrency(todaySales)} className="text-white" />
             </div>
-            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur-md ring-1 ring-white/20">
+            <div className="rounded-2xl bg-white/15 p-4 backdrop-blur-md ring-1 ring-white/20 min-w-0">
               <p className="text-xs font-medium text-indigo-100 uppercase tracking-wide">
                 {isStaff ? 'Stock Value' : 'Net Profit'}
               </p>
-              <p
-                className={cn(
-                  'mt-1 text-2xl sm:text-3xl font-bold',
-                  isStaff ? 'text-white' : netProfit >= 0 ? 'text-emerald-200' : 'text-rose-200'
-                )}
-              >
-                {isStaff
-                  ? formatCurrency(stockSummary?.totalValue || 0)
-                  : formatCurrency(netProfit)}
-              </p>
+              <FitValue
+                value={
+                  isStaff
+                    ? formatCurrency(stockSummary?.totalValue || 0)
+                    : formatCurrency(netProfit)
+                }
+                className={isStaff ? 'text-white' : netProfit >= 0 ? 'text-emerald-200' : 'text-rose-200'}
+              />
             </div>
           </div>
         </div>
@@ -517,12 +514,7 @@ export default function DashboardPage() {
             }
             accent="bg-gradient-to-b from-cyan-400 to-blue-600"
           />
-          <div
-            className={cn(
-              'grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4',
-              isStaff ? 'xl:grid-cols-4' : 'xl:grid-cols-5'
-            )}
-          >
+          <div className={STAT_GRID_CLASS}>
             <StatCard
               href="/sales"
               title={hasDateFilter ? 'Selected Sales' : "Today's Sales"}
@@ -618,7 +610,7 @@ export default function DashboardPage() {
             description="Purchases, returns, expenses, and other income"
             accent="bg-gradient-to-b from-orange-400 to-rose-500"
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 sm:gap-4">
+          <div className={STAT_GRID_CLASS}>
             <StatCard
               href="/purchases"
               title={hasDateFilter ? 'Range Purchase' : 'Today Purchase'}
@@ -694,15 +686,16 @@ export default function DashboardPage() {
             accent="bg-gradient-to-b from-sky-400 to-indigo-600"
           />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-            <Link href="/dashboard" className="block group">
+            <Link href="/dashboard" className="block group min-w-0">
               <div className="relative h-full overflow-hidden rounded-2xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-5 text-white shadow-xl shadow-blue-300/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
-                <div className="relative flex items-start justify-between">
-                  <div>
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-sky-100">Cash in Hand</p>
-                    <p className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight">
-                      {formatCurrency(cashInHand?.cashInHand || 0)}
-                    </p>
+                    <FitValue
+                      value={formatCurrency(cashInHand?.cashInHand || 0)}
+                      className="text-white"
+                    />
                   </div>
                   <div className="rounded-xl bg-white/20 p-2.5 backdrop-blur-sm">
                     <Banknote className="h-5 w-5" />

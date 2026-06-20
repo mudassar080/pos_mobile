@@ -36,7 +36,7 @@ import { productsApi, customersApi, salesApi } from '@/lib/api';
 import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { ColorCard, SalesPageHero, SummaryStat } from '@/components/sales/sales-ui';
+import { ColorCard, SalesPageHero, STAT_GRID_CLASS, SummaryStat } from '@/components/sales/sales-ui';
 
 interface SaleItem {
   id: string;
@@ -421,7 +421,7 @@ export default function NewSalePage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Items"
             value={String(items.length)}

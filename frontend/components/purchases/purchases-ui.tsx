@@ -5,6 +5,8 @@ import { Plus } from 'lucide-react';
 export {
   ColorCard,
   SummaryStat,
+  SummaryStatGrid,
+  STAT_GRID_CLASS,
   SalesPageHero,
   getStatusBadge,
   getReasonBadge,

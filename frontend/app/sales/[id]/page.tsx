@@ -24,6 +24,7 @@ import {
   formatSaleDate,
   getStatusBadge,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/sales/sales-ui';
 
@@ -151,7 +152,7 @@ export default function SaleViewPage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Amount"
             value={formatCurrency(sale.amount)}

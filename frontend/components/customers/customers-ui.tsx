@@ -4,6 +4,8 @@ import { Plus } from 'lucide-react';
 export {
   ColorCard,
   SummaryStat,
+  SummaryStatGrid,
+  STAT_GRID_CLASS,
   SalesPageHero,
 } from '@/components/sales/sales-ui';
 

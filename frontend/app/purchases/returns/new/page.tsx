@@ -33,6 +33,7 @@ import {
   ColorCard,
   PURCHASE_RETURN_GRADIENT,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
   purchaseBtnPrimary,
   purchaseBtnSecondary,
@@ -244,7 +245,7 @@ export default function NewPurchaseReturnPage() {
           backHref="/purchases/returns"
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Selected Items"
             value={String(selectedItems.length)}

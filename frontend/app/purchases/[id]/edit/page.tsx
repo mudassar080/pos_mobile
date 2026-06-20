@@ -33,6 +33,7 @@ import {
   ColorCard,
   PURCHASE_GRADIENT,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
   purchaseBtnPrimary,
   purchaseBtnSecondary,
@@ -651,7 +652,7 @@ export default function EditPurchasePage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Items"
             value={String(items.length)}

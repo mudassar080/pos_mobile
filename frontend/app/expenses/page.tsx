@@ -26,6 +26,7 @@ import {
   getCategoryBadge,
   NewExpenseButton,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/expenses/expenses-ui';
 import {
@@ -147,7 +148,7 @@ export default function ExpensesPage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="This Month"
             value={loading ? '-' : formatCurrency(summary?.totalExpenses || 0)}

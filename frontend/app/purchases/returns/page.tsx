@@ -42,6 +42,7 @@ import {
   NewPurchaseReturnButton,
   PURCHASE_RETURN_GRADIENT,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/purchases/purchases-ui';
 
@@ -119,7 +120,7 @@ export default function PurchaseReturnsPage() {
           actions={<NewPurchaseReturnButton />}
         />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Returns"
             value={summary ? String(summary.totalReturns || 0) : '-'}

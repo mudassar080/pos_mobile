@@ -28,6 +28,7 @@ import {
   INCOME_GRADIENT,
   NewIncomeButton,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/other-income/other-income-ui';
 import {
@@ -142,7 +143,7 @@ export default function OtherIncomePage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="This Month"
             value={summary ? formatCurrency(summary.totalIncome || 0) : '-'}

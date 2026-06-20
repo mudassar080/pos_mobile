@@ -30,6 +30,7 @@ import {
   SETTINGS_GRADIENT,
   settingsBtnPrimary,
   settingsBtnSecondary,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/settings/settings-ui';
 
@@ -135,7 +136,7 @@ export default function SettingsPage() {
           gradient={SETTINGS_GRADIENT}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Shop Name"
             value={loadingProfile ? '-' : shopProfile.shopName || 'Not set'}

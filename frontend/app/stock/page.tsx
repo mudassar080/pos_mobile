@@ -30,6 +30,7 @@ import {
   ColorCard,
   SalesPageHero,
   STOCK_GRADIENT,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/stock/stock-ui';
 
@@ -135,7 +136,7 @@ export default function StockPage() {
           gradient={STOCK_GRADIENT}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Phones Available"
             value={summaryLoading ? '-' : String(stockSummary?.phones?.available || 0)}

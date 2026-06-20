@@ -53,6 +53,7 @@ import {
   INVESTMENT_GRADIENT,
   NewTransactionButton,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/investments/investments-ui';
 import {
@@ -284,7 +285,7 @@ export default function InvestmentsPage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Investments"
             value={summary ? formatCurrency(summary.totalInvestments || 0) : '-'}

@@ -85,6 +85,7 @@ const activityLogSchema = new mongoose.Schema(
 );
 
 activityLogSchema.index({ createdAt: -1 });
+activityLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2 * 24 * 60 * 60 });
 activityLogSchema.index({ user: 1, createdAt: -1 });
 activityLogSchema.index({ entity: 1, createdAt: -1 });
 activityLogSchema.index({ action: 1, createdAt: -1 });

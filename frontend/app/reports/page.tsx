@@ -52,6 +52,7 @@ import {
   REPORT_GRADIENT,
   reportBtnPrimary,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
   ViewToggle,
 } from '@/components/reports/reports-ui';
@@ -764,7 +765,7 @@ export default function ReportsPage() {
         )}
 
         {view === 'report' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className={STAT_GRID_CLASS}>
             <SummaryStat
               label="Selected Field"
               value={generatedFieldConfig.label}
@@ -789,7 +790,7 @@ export default function ReportsPage() {
             />
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className={STAT_GRID_CLASS}>
             <SummaryStat
               label="Sales Total"
               value={hasGeneratedDayBook ? formatCurrency(dayBookSummary.salesTotal) : '-'}

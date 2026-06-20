@@ -34,6 +34,7 @@ import {
   getAgingBadge,
   RECEIVABLE_GRADIENT,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/accounting/accounting-ui';
 import { AgingPaymentDialog } from '@/components/accounting/aging-payment-dialog';
@@ -152,7 +153,7 @@ export default function ReceivablesPage() {
           }
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Receivables"
             value={summary ? formatCurrency(summary.totalReceivables) : '-'}

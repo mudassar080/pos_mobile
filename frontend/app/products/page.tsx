@@ -46,6 +46,7 @@ import {
   NewProductButton,
   PRODUCT_GRADIENT,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/products/products-ui';
 import { ProductFormDialog } from '@/components/products/product-form-dialog';
@@ -237,7 +238,7 @@ export default function ProductsPage() {
           actions={<NewProductButton onClick={handleOpenAddDialog} />}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Products"
             value={loading ? '-' : String(pagination.total || 0)}

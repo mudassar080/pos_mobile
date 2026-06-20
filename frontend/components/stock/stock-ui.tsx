@@ -1,6 +1,8 @@
 export {
   ColorCard,
   SummaryStat,
+  SummaryStatGrid,
+  STAT_GRID_CLASS,
   SalesPageHero,
 } from '@/components/sales/sales-ui';
 

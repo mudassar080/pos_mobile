@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FitValue, SummaryStatGrid, STAT_GRID_CLASS } from '@/components/ui/stat-cards';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Eye, Pencil, Plus, type LucideIcon } from 'lucide-react';
+
+export { FitValue, SummaryStatGrid, STAT_GRID_CLASS };
 
 export function formatSaleDate(date: string) {
   return new Date(date).toLocaleString('en-PK', {
@@ -118,11 +121,16 @@ type SummaryStatProps = {
 
 export function SummaryStat({ label, value, icon: Icon, theme }: SummaryStatProps) {
   return (
-    <div className={cn('rounded-2xl p-4 sm:p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg', theme)}>
+    <div
+      className={cn(
+        'min-w-0 rounded-2xl p-4 sm:p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg',
+        theme
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{label}</p>
-          <p className="mt-1 text-xl sm:text-2xl font-bold tracking-tight truncate">{value}</p>
+          <FitValue value={value} />
         </div>
         <div className="rounded-xl bg-white/20 p-2.5 shrink-0">
           <Icon className="h-4 w-4 sm:h-5 sm:w-5" />

@@ -3,6 +3,8 @@ import { Badge } from '@/components/ui/badge';
 export {
   ColorCard,
   SummaryStat,
+  SummaryStatGrid,
+  STAT_GRID_CLASS,
   SalesPageHero,
   formatSaleDateShort,
 } from '@/components/sales/sales-ui';

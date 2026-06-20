@@ -4,6 +4,8 @@ import { Plus, UserPlus } from 'lucide-react';
 export {
   ColorCard,
   SummaryStat,
+  SummaryStatGrid,
+  STAT_GRID_CLASS,
   SalesPageHero,
   formatAccountingDate,
 } from '@/components/accounting/accounting-ui';

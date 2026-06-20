@@ -48,6 +48,7 @@ import {
   NewSupplierButton,
   SalesPageHero,
   SUPPLIER_GRADIENT,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/suppliers/suppliers-ui';
 import { SupplierFormDialog } from '@/components/suppliers/supplier-form-dialog';
@@ -460,7 +461,7 @@ export default function SuppliersPage() {
           actions={<NewSupplierButton onClick={handleOpenAdd} />}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Suppliers"
             value={summary ? String(summary.totalSuppliers || 0) : '-'}

@@ -29,6 +29,7 @@ import {
   NewSaleButton,
   SaleActionLinks,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/sales/sales-ui';
 
@@ -105,7 +106,7 @@ export default function SalesPage() {
           actions={<NewSaleButton />}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Sales"
             value={summary ? String(summary.count || 0) : '-'}

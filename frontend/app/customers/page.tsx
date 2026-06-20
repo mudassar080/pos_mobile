@@ -47,6 +47,7 @@ import {
   CUSTOMER_GRADIENT,
   NewCustomerButton,
   SalesPageHero,
+  STAT_GRID_CLASS,
   SummaryStat,
 } from '@/components/customers/customers-ui';
 import { CustomerFormDialog } from '@/components/customers/customer-form-dialog';
@@ -397,7 +398,7 @@ export default function CustomersPage() {
           actions={<NewCustomerButton onClick={handleOpenAdd} />}
         />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className={STAT_GRID_CLASS}>
           <SummaryStat
             label="Total Customers"
             value={summary ? String(summary.totalCustomers || 0) : '-'}

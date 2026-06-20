@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const ensureDefaultSuperAdmin = require('./utils/ensureDefaultSuperAdmin');
+const { scheduleDailyActivityLogCleanup } = require('./utils/cleanupActivityLogs');
 const { protect } = require('./middleware/auth');
 
 dotenv.config();
@@ -57,6 +58,7 @@ app.use((err, req, res, next) => {
 const startServer = async () => {
   await connectDB();
   await ensureDefaultSuperAdmin();
+  scheduleDailyActivityLogCleanup();
 
   const PORT = process.env.PORT || 5000;
 
