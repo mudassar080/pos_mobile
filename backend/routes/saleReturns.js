@@ -3,6 +3,8 @@ const router = express.Router();
 const {
   getSaleReturns,
   getSaleReturn,
+  getReturnableSales,
+  getReturnedQuantities,
   createSaleReturn,
   deleteSaleReturn,
   getSaleReturnSummary,
@@ -10,6 +12,8 @@ const {
 
 // Summary route (must be before /:id)
 router.get('/summary', getSaleReturnSummary);
+router.get('/returnable-sales', getReturnableSales);
+router.get('/returned-quantities/:saleId', getReturnedQuantities);
 
 // CRUD routes
 router.route('/').get(getSaleReturns).post(createSaleReturn);

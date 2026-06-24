@@ -24,10 +24,17 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, Loader2, RotateCcw, Package, DollarSign, TrendingUp } from 'lucide-react';
-import { saleReturnsApi, salesApi } from '@/lib/api';
-import { paginatedParams } from '@/lib/pagination';
+import { saleReturnsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, REFUND_METHODS } from '@/utils/constant';
+import { normalizeSaleLineItem } from '@/lib/line-items';
+import {
+  ProductNameCell,
+  LineItemBrandCell,
+  LineItemModelCell,
+  LineItemCategoryCell,
+  LineItemImeiCell,
+} from '@/components/line-items/line-item-table-cells';
 import { cn } from '@/lib/utils';
 import { ColorCard, SalesPageHero, STAT_GRID_CLASS, SummaryStat } from '@/components/sales/sales-ui';
 
@@ -41,6 +48,7 @@ export default function NewSalesReturnPage() {
   const [selectedSale, setSelectedSale] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [loadingSales, setLoadingSales] = useState(true);
+  const [loadingItems, setLoadingItems] = useState(false);
   const [formData, setFormData] = useState({
     sale: '',
     reason: 'Defective',
@@ -52,7 +60,7 @@ export default function NewSalesReturnPage() {
   const fetchSales = async () => {
     try {
       setLoadingSales(true);
-      const response = await salesApi.getAll(paginatedParams(200));
+      const response = await saleReturnsApi.getReturnableSales();
       if (response.success && response.data) {
         setSales(response.data);
       }
@@ -71,34 +79,80 @@ export default function NewSalesReturnPage() {
     fetchSales();
   }, []);
 
-  const handleSaleChange = (saleId: string) => {
+  const handleSaleChange = async (saleId: string) => {
     const sale = sales.find((s) => s._id === saleId);
     setSelectedSale(sale);
     setFormData((prev) => ({ ...prev, sale: saleId }));
 
-    if (sale?.items) {
-      setReturnItems(
-        sale.items.map((item: any) => ({
-          product: item.product?._id || item.product,
-          productName: item.productName,
-          imei: item.imei,
+    if (!sale?.items) {
+      setReturnItems([]);
+      return;
+    }
+
+    setLoadingItems(true);
+    try {
+      const returnedRes = await saleReturnsApi.getReturnedQuantities(saleId);
+      const returnedMap = returnedRes.success ? returnedRes.data : {};
+
+      const items = sale.items.map((item: any) => {
+        const key = item.imei || (item.product?._id || item.product);
+        const alreadyReturned = returnedMap[key] || 0;
+        const remainingQty = Math.max(0, item.quantity - alreadyReturned);
+        return {
+          ...normalizeSaleLineItem(item),
           quantity: 0,
-          maxQuantity: item.quantity,
+          maxQuantity: remainingQty,
+          originalSaleQty: item.quantity,
+          alreadyReturned,
           price: item.price,
           returnPrice: item.price,
-          purchasePrice: item.product?.purchasePrice ?? 0,
+          condition: 'resellable',
+          selected: false,
+        };
+      });
+
+      const hasReturnableItems = items.some((item) => item.maxQuantity > 0);
+      if (!hasReturnableItems) {
+        setSales((prev) => prev.filter((s) => s._id !== saleId));
+        setSelectedSale(null);
+        setReturnItems([]);
+        setFormData((prev) => ({ ...prev, sale: '' }));
+        toast({
+          title: 'Invoice unavailable',
+          description: 'All items from this sale have already been returned.',
+        });
+        return;
+      }
+
+      setReturnItems(items);
+    } catch {
+      setReturnItems(
+        sale.items.map((item: any) => ({
+          ...normalizeSaleLineItem(item),
+          quantity: 0,
+          maxQuantity: item.quantity,
+          originalSaleQty: item.quantity,
+          alreadyReturned: 0,
+          price: item.price,
+          returnPrice: item.price,
           condition: 'resellable',
           selected: false,
         }))
       );
+    } finally {
+      setLoadingItems(false);
     }
   };
 
   const handleItemToggle = (index: number, checked: boolean) => {
     const updated = [...returnItems];
+    if (updated[index].maxQuantity <= 0) return;
     updated[index].selected = checked;
     if (checked && updated[index].quantity === 0) {
       updated[index].quantity = updated[index].maxQuantity;
+    }
+    if (!checked) {
+      updated[index].quantity = 0;
     }
     setReturnItems(updated);
   };
@@ -276,18 +330,27 @@ export default function NewSalesReturnPage() {
                   </Select>
                 </div>
 
-                {selectedSale && returnItems.length > 0 && (
+                {selectedSale && loadingItems && (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
+                  </div>
+                )}
+
+                {selectedSale && !loadingItems && returnItems.length > 0 && (
                   <>
                     {/* Mobile item cards */}
                     <div className="space-y-3 md:hidden">
-                      {returnItems.map((item, index) => (
+                      {returnItems.map((item, index) => {
+                        const fullyReturned = item.maxQuantity <= 0;
+                        return (
                         <div
                           key={index}
                           className={cn(
                             'rounded-2xl border p-4 transition-colors',
                             item.selected
                               ? 'border-orange-200 bg-gradient-to-br from-orange-50/80 to-amber-50/50'
-                              : 'border-slate-200 bg-white'
+                              : 'border-slate-200 bg-white',
+                            fullyReturned && 'opacity-50'
                           )}
                         >
                           <div className="flex items-start gap-3">
@@ -297,12 +360,24 @@ export default function NewSalesReturnPage() {
                                 handleItemToggle(index, checked as boolean)
                               }
                               className="mt-1"
+                              disabled={fullyReturned}
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-slate-900">{item.productName}</p>
-                              <p className="text-xs font-mono text-indigo-600 mt-0.5">
-                                {item.imei || `Max qty: ${item.maxQuantity}`}
-                              </p>
+                              <ProductNameCell item={item} showViewButton={false} />
+                              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                                <span>Brand: <LineItemBrandCell item={item} /></span>
+                                <span>Model: <LineItemModelCell item={item} /></span>
+                                <span>Category: <LineItemCategoryCell item={item} /></span>
+                                <span>IMEI: <LineItemImeiCell item={item} /></span>
+                              </div>
+                              {item.alreadyReturned > 0 && (
+                                <p className="text-xs text-orange-600 mt-1">
+                                  {item.alreadyReturned} of {item.originalSaleQty} already returned
+                                </p>
+                              )}
+                              {!item.imei && (
+                                <p className="text-xs text-slate-500 mt-1">Max qty: {item.maxQuantity}</p>
+                              )}
                               <p className="text-sm text-slate-500 mt-1">
                                 Sale: {formatCurrency(item.price)}
                               </p>
@@ -322,6 +397,7 @@ export default function NewSalesReturnPage() {
                                       handleItemQuantityChange(index, parseInt(e.target.value) || 0)
                                     }
                                     className="rounded-lg mt-1 h-9"
+                                    disabled={fullyReturned}
                                   />
                                 </div>
                               )}
@@ -334,6 +410,7 @@ export default function NewSalesReturnPage() {
                                   value={item.returnPrice ?? item.price}
                                   onChange={(e) => handleItemReturnPriceChange(index, e.target.value)}
                                   className="rounded-lg mt-1 h-9"
+                                  disabled={fullyReturned}
                                 />
                               </div>
                               <div className="col-span-2">
@@ -357,7 +434,8 @@ export default function NewSalesReturnPage() {
                             </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Desktop table */}
@@ -367,6 +445,9 @@ export default function NewSalesReturnPage() {
                           <TableRow className="bg-gradient-to-r from-orange-50 to-amber-50/80">
                             <TableHead className="w-10">Sel</TableHead>
                             <TableHead>Product</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>Model</TableHead>
+                            <TableHead>Category</TableHead>
                             <TableHead>IMEI</TableHead>
                             <TableHead>Sale Price</TableHead>
                             <TableHead>Return Price</TableHead>
@@ -376,10 +457,15 @@ export default function NewSalesReturnPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {returnItems.map((item, index) => (
+                          {returnItems.map((item, index) => {
+                            const fullyReturned = item.maxQuantity <= 0;
+                            return (
                             <TableRow
                               key={index}
-                              className={item.selected ? 'bg-orange-50/40' : undefined}
+                              className={cn(
+                                item.selected && 'bg-orange-50/40',
+                                fullyReturned && 'opacity-50'
+                              )}
                             >
                               <TableCell>
                                 <Checkbox
@@ -387,12 +473,21 @@ export default function NewSalesReturnPage() {
                                   onCheckedChange={(checked) =>
                                     handleItemToggle(index, checked as boolean)
                                   }
+                                  disabled={fullyReturned}
                                 />
                               </TableCell>
-                              <TableCell className="font-medium">{item.productName}</TableCell>
-                              <TableCell className="font-mono text-xs text-indigo-600">
-                                {item.imei || '-'}
+                              <TableCell>
+                                <ProductNameCell item={item} showViewButton={false} />
+                                {item.alreadyReturned > 0 && (
+                                  <p className="text-xs text-orange-600 mt-1">
+                                    {item.alreadyReturned} of {item.originalSaleQty} already returned
+                                  </p>
+                                )}
                               </TableCell>
+                              <TableCell><LineItemBrandCell item={item} /></TableCell>
+                              <TableCell><LineItemModelCell item={item} /></TableCell>
+                              <TableCell><LineItemCategoryCell item={item} /></TableCell>
+                              <TableCell><LineItemImeiCell item={item} /></TableCell>
                               <TableCell>{formatCurrency(item.price)}</TableCell>
                               <TableCell>
                                 <Input
@@ -402,7 +497,7 @@ export default function NewSalesReturnPage() {
                                   value={item.returnPrice ?? item.price}
                                   onChange={(e) => handleItemReturnPriceChange(index, e.target.value)}
                                   className="w-24 rounded-lg"
-                                  disabled={!item.selected}
+                                  disabled={!item.selected || fullyReturned}
                                 />
                               </TableCell>
                               <TableCell>
@@ -415,14 +510,14 @@ export default function NewSalesReturnPage() {
                                     handleItemQuantityChange(index, parseInt(e.target.value) || 0)
                                   }
                                   className="w-20 rounded-lg"
-                                  disabled={!item.selected || !!item.imei}
+                                  disabled={!item.selected || !!item.imei || fullyReturned}
                                 />
                               </TableCell>
                               <TableCell>
                                 <Select
                                   value={item.condition}
                                   onValueChange={(value) => handleItemConditionChange(index, value)}
-                                  disabled={!item.selected}
+                                  disabled={!item.selected || fullyReturned}
                                 >
                                   <SelectTrigger className="w-32 rounded-lg">
                                     <SelectValue />
@@ -444,7 +539,8 @@ export default function NewSalesReturnPage() {
                                 )}
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -544,7 +640,7 @@ export default function NewSalesReturnPage() {
                   onClick={handleCreateReturn}
                   className="w-full rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 border-0 shadow-lg shadow-orange-300/40"
                   size="lg"
-                  disabled={saving || !formData.sale || selectedItems.length === 0}
+                  disabled={saving || loadingItems || !formData.sale || selectedItems.length === 0}
                 >
                   {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   <RotateCcw className="w-4 h-4 mr-2" />

@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FitValue, SummaryStatGrid, STAT_GRID_CLASS } from '@/components/ui/stat-cards';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Eye, Pencil, Plus, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, Plus, type LucideIcon } from 'lucide-react';
 
 export { FitValue, SummaryStatGrid, STAT_GRID_CLASS };
 
@@ -151,47 +151,6 @@ export function NewSaleButton() {
         New Sale
       </Button>
     </Link>
-  );
-}
-
-export function SaleActionLinks({
-  saleId,
-  status,
-  size = 'sm',
-  allowEdit = true,
-}: {
-  saleId: string;
-  status: string;
-  size?: 'sm' | 'icon';
-  allowEdit?: boolean;
-}) {
-  const canEdit = allowEdit && status !== 'cancelled' && status !== 'paid';
-
-  return (
-    <div className="flex items-center gap-1">
-      <Link href={`/sales/${saleId}`}>
-        <Button
-          variant="ghost"
-          size={size === 'icon' ? 'icon' : 'sm'}
-          className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
-        >
-          <Eye className="h-4 w-4" />
-          {size !== 'icon' && <span className="ml-1">View</span>}
-        </Button>
-      </Link>
-      {canEdit && (
-        <Link href={`/sales/${saleId}/edit`}>
-          <Button
-            variant="ghost"
-            size={size === 'icon' ? 'icon' : 'sm'}
-            className="text-violet-600 hover:text-violet-700 hover:bg-violet-50 rounded-lg"
-          >
-            <Pencil className="h-4 w-4" />
-            {size !== 'icon' && <span className="ml-1">Edit</span>}
-          </Button>
-        </Link>
-      )}
-    </div>
   );
 }
 

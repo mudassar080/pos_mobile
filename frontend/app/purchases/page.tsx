@@ -14,12 +14,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -73,7 +67,6 @@ export default function PurchasesPage() {
   const [summary, setSummary] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; num: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [detailsPurchase, setDetailsPurchase] = useState<any | null>(null);
 
   const {
     items: purchases,
@@ -227,9 +220,11 @@ export default function PurchasesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => setDetailsPurchase(purchase)}>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View details
+                            <DropdownMenuItem asChild>
+                              <Link href={`/purchases/${purchase._id}`}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                View details
+                              </Link>
                             </DropdownMenuItem>
                             {canEdit && purchase.status !== 'cancelled' && (
                               <DropdownMenuItem asChild>
@@ -309,9 +304,11 @@ export default function PurchasesPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onSelect={() => setDetailsPurchase(purchase)}>
-                                  <Eye className="mr-2 h-4 w-4" />
-                                  View details
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/purchases/${purchase._id}`}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    View details
+                                  </Link>
                                 </DropdownMenuItem>
                                 {canEdit &&
                                   (purchase.status !== 'cancelled' ? (
@@ -365,111 +362,6 @@ export default function PurchasesPage() {
             </>
           )}
         </ColorCard>
-
-        <Dialog
-          open={detailsPurchase !== null}
-          onOpenChange={(open) => {
-            if (!open) setDetailsPurchase(null);
-          }}
-        >
-          <DialogContent className="max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
-            {detailsPurchase ? (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="text-indigo-900">
-                    Purchase Details — {detailsPurchase.purchaseNumber}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      { label: 'Supplier', value: detailsPurchase.supplierName },
-                      {
-                        label: 'Date',
-                        value: formatSaleDate(detailsPurchase.date),
-                      },
-                      {
-                        label: 'Total Amount',
-                        value: formatCurrency(detailsPurchase.amount),
-                        highlight: 'text-indigo-700 font-bold',
-                      },
-                      { label: 'Status', value: null, badge: detailsPurchase.status },
-                    ].map((field) => (
-                      <div key={field.label} className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs text-slate-500">{field.label}</p>
-                        {field.badge ? (
-                          <div className="mt-1">{getStatusBadge(field.badge)}</div>
-                        ) : (
-                          <p className={`font-semibold mt-0.5 ${field.highlight || ''}`}>
-                            {field.value}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-2 text-slate-800">Items</h4>
-                    <div className="space-y-2">
-                      {detailsPurchase.items?.map((item: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between rounded-xl bg-indigo-50/60 px-3 py-2 text-sm"
-                        >
-                          <span>
-                            {item.productName} x {item.quantity}
-                          </span>
-                          <span className="font-semibold text-indigo-800">
-                            {formatCurrency(item.total)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-2 text-slate-800">Payment History</h4>
-                    {detailsPurchase.paymentHistory?.length > 0 ? (
-                      <div className="space-y-2">
-                        {[...detailsPurchase.paymentHistory]
-                          .sort(
-                            (a: any, b: any) =>
-                              new Date(b.date).getTime() - new Date(a.date).getTime()
-                          )
-                          .map((payment: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between rounded-xl bg-violet-50/80 ring-1 ring-violet-100 p-3 text-sm"
-                            >
-                              <div>
-                                <p className="font-semibold text-violet-900">
-                                  {formatCurrency(payment.amount)} ({payment.paymentMode || 'Cash'})
-                                </p>
-                                <p className="text-slate-500">
-                                  {payment.note || payment.source || 'Payment'}
-                                </p>
-                              </div>
-                              <span className="text-slate-500 shrink-0">
-                                {payment.date ? formatSaleDate(payment.date) : '-'}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-500">No payment history available</p>
-                    )}
-                  </div>
-                  {canEdit && detailsPurchase.status !== 'cancelled' && (
-                    <Link href={`/purchases/${detailsPurchase._id}/edit`}>
-                      <Button className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border-0">
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Edit Purchase
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </>
-            ) : null}
-          </DialogContent>
-        </Dialog>
 
         <AlertDialog
           open={deleteTarget !== null}

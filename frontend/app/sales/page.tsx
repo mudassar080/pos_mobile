@@ -5,6 +5,23 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -13,7 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Trash2, ShoppingCart, DollarSign, Wallet, Receipt } from 'lucide-react';
+import { Search, Loader2, Trash2, ShoppingCart, DollarSign, Wallet, Receipt, Eye, Pencil, MoreVertical } from 'lucide-react';
 import Link from 'next/link';
 import { salesApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -27,7 +44,6 @@ import {
   formatSaleDateShort,
   getStatusBadge,
   NewSaleButton,
-  SaleActionLinks,
   SalesPageHero,
   STAT_GRID_CLASS,
   SummaryStat,
@@ -36,7 +52,8 @@ import {
 export default function SalesPage() {
   const { toast } = useToast();
   const { canEdit, canDelete } = usePermissions();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; num: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [summary, setSummary] = useState<any>(null);
 
   const {
@@ -67,20 +84,18 @@ export default function SalesPage() {
     fetchSummary();
   }, []);
 
-  const handleDelete = async (sale: any) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete sale ${sale.invoiceNumber}?\n\nThis will restore all linked products back to available status.`
-    );
-    if (!confirmed) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
 
-    setDeletingId(sale._id);
+    setDeleting(true);
     try {
-      const response = await salesApi.delete(sale._id);
+      const response = await salesApi.delete(deleteTarget.id);
       if (response.success) {
         toast({
           title: 'Sale Deleted',
-          description: `${sale.invoiceNumber} deleted and products restored`,
+          description: `${deleteTarget.num} deleted and products restored`,
         });
+        setDeleteTarget(null);
         await refetch();
         await fetchSummary();
       }
@@ -91,9 +106,59 @@ export default function SalesPage() {
         variant: 'destructive',
       });
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
     }
   };
+
+  const renderSaleActions = (sale: any, mobile = false) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={mobile ? 'outline' : 'ghost'}
+          size={mobile ? 'sm' : 'icon'}
+          className={mobile ? 'rounded-lg' : 'h-8 w-8 rounded-lg'}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={`/sales/${sale._id}`}>
+            <Eye className="mr-2 h-4 w-4" />
+            View details
+          </Link>
+        </DropdownMenuItem>
+        {canEdit &&
+          (sale.status !== 'cancelled' && sale.status !== 'paid' ? (
+            <DropdownMenuItem asChild>
+              <Link href={`/sales/${sale._id}/edit`}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit payment
+              </Link>
+            </DropdownMenuItem>
+          ) : sale.status === 'cancelled' ? (
+            <DropdownMenuItem disabled>
+              <Pencil className="mr-2 h-4 w-4 opacity-50" />
+              Edit (cancelled)
+            </DropdownMenuItem>
+          ) : null)}
+        {canDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600 focus:text-red-600"
+              onSelect={() =>
+                setDeleteTarget({ id: sale._id, num: sale.invoiceNumber })
+              }
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
     <MainLayout>
@@ -188,29 +253,7 @@ export default function SalesPage() {
                       <Badge variant="outline" className="rounded-lg border-slate-200">
                         {sale.paymentMode}
                       </Badge>
-                      <div className="flex items-center gap-1">
-                        <SaleActionLinks
-                          saleId={sale._id}
-                          status={sale.status}
-                          size="icon"
-                          allowEdit={canEdit}
-                        />
-                        {canDelete && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(sale)}
-                            disabled={deletingId === sale._id}
-                            className="rounded-lg text-red-600 hover:bg-red-50"
-                          >
-                            {deletingId === sale._id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                      <div className="flex justify-end">{renderSaleActions(sale, true)}</div>
                     </div>
                   </div>
                 ))}
@@ -263,28 +306,7 @@ export default function SalesPage() {
                         </TableCell>
                         <TableCell>{getStatusBadge(sale.status)}</TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <SaleActionLinks
-                              saleId={sale._id}
-                              status={sale.status}
-                              allowEdit={canEdit}
-                            />
-                            {canDelete && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(sale)}
-                                disabled={deletingId === sale._id}
-                                className="text-red-600 hover:bg-red-50 rounded-lg"
-                              >
-                                {deletingId === sale._id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                            )}
-                          </div>
+                          <div className="flex justify-end">{renderSaleActions(sale)}</div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -303,6 +325,31 @@ export default function SalesPage() {
             </>
           )}
         </ColorCard>
+
+        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+          <AlertDialogContent className="rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Sale</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete sale <strong>{deleteTarget?.num}</strong>? This will
+                restore all linked products back to available status.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting} className="rounded-xl">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="rounded-xl bg-red-600 hover:bg-red-700"
+              >
+                {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );

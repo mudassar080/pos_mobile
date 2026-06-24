@@ -32,11 +32,22 @@ import {
 import { Plus, Trash2, Save, User, Loader2, Package, ShoppingBag, CreditCard } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { formatCurrency, PAYMENT_MODES } from '@/utils/constant';
+import {
+  ProductNameCell,
+  LineItemBrandCell,
+  LineItemModelCell,
+  LineItemCategoryCell,
+  LineItemImeiCell,
+} from '@/components/line-items/line-item-table-cells';
 import { productsApi, customersApi, salesApi } from '@/lib/api';
 import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ColorCard, SalesPageHero, STAT_GRID_CLASS, SummaryStat } from '@/components/sales/sales-ui';
+import {
+  calculateSaleDiscount,
+  type SaleDiscountType,
+} from '@/lib/sale-discount';
 
 interface SaleItem {
   id: string;
@@ -68,6 +79,8 @@ export default function NewSalePage() {
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [paidAmount, setPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
+  const [discountType, setDiscountType] = useState<SaleDiscountType>('none');
+  const [discountValue, setDiscountValue] = useState('');
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
@@ -287,7 +300,13 @@ export default function NewSalePage() {
     setItems(items.filter((item) => item.id !== id));
   };
 
-  const total = items.reduce((sum, item) => sum + item.total, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+  const pricing = calculateSaleDiscount(
+    subtotal,
+    discountType,
+    parseFloat(discountValue) || 0
+  );
+  const grandTotal = pricing.amount;
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalProfitLoss = items.reduce(
     (sum, item) => sum + (item.price - item.purchasePrice) * item.quantity,
@@ -348,9 +367,11 @@ export default function NewSalePage() {
           quantity: item.quantity,
           price: item.price,
         })),
-        paid: paidAmount ? parseFloat(paidAmount) : total,
+        paid: paidAmount ? parseFloat(paidAmount) : grandTotal,
         paymentMode,
         notes,
+        discountType: pricing.discountType,
+        discountValue: pricing.discountValue,
       };
 
       await salesApi.create(saleData);
@@ -446,7 +467,7 @@ export default function NewSalePage() {
           />
           <SummaryStat
             label="Total"
-            value={formatCurrency(total)}
+            value={formatCurrency(grandTotal)}
             icon={CreditCard}
             theme="bg-gradient-to-br from-indigo-50 to-blue-100 text-indigo-900 ring-1 ring-indigo-100"
           />
@@ -707,10 +728,22 @@ export default function NewSalePage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="font-semibold text-slate-900 truncate">{item.product.name}</p>
-                              <p className="text-xs font-mono text-indigo-600 mt-0.5">
-                                {item.imei ? item.imei : `Qty: ${item.quantity}`}
-                              </p>
+                              <ProductNameCell
+                                item={{
+                                  product: item.product,
+                                  productName: item.product.name,
+                                  imei: item.imei,
+                                  purchasePrice: item.purchasePrice,
+                                  sellingPrice: item.price,
+                                }}
+                                showViewButton={false}
+                              />
+                              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                                <span>Brand: <LineItemBrandCell item={{ product: item.product }} /></span>
+                                <span>Model: <LineItemModelCell item={{ product: item.product }} /></span>
+                                <span>Category: <LineItemCategoryCell item={{ product: item.product }} /></span>
+                                <span>IMEI: <LineItemImeiCell item={{ imei: item.imei }} /></span>
+                              </div>
                             </div>
                             <Button
                               variant="ghost"
@@ -760,6 +793,9 @@ export default function NewSalePage() {
                         <TableHeader>
                           <TableRow className="bg-gradient-to-r from-slate-50 to-emerald-50/50">
                             <TableHead>Product</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>Model</TableHead>
+                            <TableHead>Category</TableHead>
                             <TableHead>IMEI / Qty</TableHead>
                             <TableHead>Price</TableHead>
                             <TableHead>Profit / Loss</TableHead>
@@ -770,7 +806,21 @@ export default function NewSalePage() {
                         <TableBody>
                           {items.map((item) => (
                             <TableRow key={item.id} className="hover:bg-emerald-50/20">
-                              <TableCell className="font-medium">{item.product.name}</TableCell>
+                              <TableCell>
+                                <ProductNameCell
+                                  item={{
+                                    product: item.product,
+                                    productName: item.product.name,
+                                    imei: item.imei,
+                                    purchasePrice: item.purchasePrice,
+                                    sellingPrice: item.price,
+                                  }}
+                                  showViewButton={false}
+                                />
+                              </TableCell>
+                              <TableCell><LineItemBrandCell item={{ product: item.product }} /></TableCell>
+                              <TableCell><LineItemModelCell item={{ product: item.product }} /></TableCell>
+                              <TableCell><LineItemCategoryCell item={{ product: item.product }} /></TableCell>
                               <TableCell className="font-mono text-sm">
                                 {item.imei ? (
                                   <span className="text-indigo-600">{item.imei}</span>
@@ -868,11 +918,59 @@ export default function NewSalePage() {
                       <span className="font-semibold text-cyan-900">{customer.name}</span>
                     </div>
                   )}
+                  <div className="flex justify-between text-sm rounded-xl bg-slate-50 px-3 py-2">
+                    <span className="text-slate-600">Subtotal</span>
+                    <span className="font-semibold">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 space-y-3">
+                    <div>
+                      <Label className="text-indigo-900">Discount</Label>
+                      <Select
+                        value={discountType}
+                        onValueChange={(value: SaleDiscountType) => {
+                          setDiscountType(value);
+                          if (value === 'none') setDiscountValue('');
+                        }}
+                      >
+                        <SelectTrigger className="rounded-xl mt-1.5 bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No discount</SelectItem>
+                          <SelectItem value="amount">Fixed amount</SelectItem>
+                          <SelectItem value="percentage">Percentage</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {discountType !== 'none' && (
+                      <div>
+                        <Label className="text-indigo-900">
+                          {discountType === 'amount' ? 'Discount amount (PKR)' : 'Discount (%)'}
+                        </Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={discountType === 'percentage' ? 100 : subtotal}
+                          step={discountType === 'percentage' ? '0.01' : '1'}
+                          value={discountValue}
+                          onChange={(e) => setDiscountValue(e.target.value)}
+                          placeholder={discountType === 'amount' ? '0' : '0'}
+                          className="rounded-xl mt-1.5 bg-white"
+                        />
+                      </div>
+                    )}
+                    {pricing.discountAmount > 0 && (
+                      <div className="flex justify-between text-sm text-rose-700 font-medium">
+                        <span>Discount applied</span>
+                        <span>-{formatCurrency(pricing.discountAmount)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 p-4 text-white shadow-lg shadow-indigo-200/50">
                   <div className="flex justify-between items-center">
                     <span className="text-indigo-100">Grand Total</span>
-                    <span className="text-2xl font-bold">{formatCurrency(total)}</span>
+                    <span className="text-2xl font-bold">{formatCurrency(grandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -903,16 +1001,16 @@ export default function NewSalePage() {
                   <Input
                     type="number"
                     min="0"
-                    max={total}
+                    max={grandTotal}
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(e.target.value)}
-                    placeholder={total.toString()}
+                    placeholder={grandTotal.toString()}
                     className="rounded-xl mt-1.5"
                   />
                   <p className="text-sm text-slate-500 mt-1.5">Leave empty for full payment</p>
-                  {paidAmount && parseFloat(paidAmount) < total && (
+                  {paidAmount && parseFloat(paidAmount) < grandTotal && (
                     <p className="text-sm font-medium text-orange-600 mt-1.5 rounded-lg bg-orange-50 px-3 py-2">
-                      Balance: {formatCurrency(total - parseFloat(paidAmount))}
+                      Balance: {formatCurrency(grandTotal - parseFloat(paidAmount))}
                     </p>
                   )}
                 </div>

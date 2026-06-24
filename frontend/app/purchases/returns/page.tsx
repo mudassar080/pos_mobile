@@ -35,6 +35,14 @@ import {
 import { purchaseReturnsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import { formatLineItemNames } from '@/lib/line-items';
+import {
+  ProductNameCell,
+  LineItemBrandCell,
+  LineItemModelCell,
+  LineItemCategoryCell,
+  LineItemImeiCell,
+} from '@/components/line-items/line-item-table-cells';
 import {
   ColorCard,
   formatSaleDateShort,
@@ -52,6 +60,7 @@ export default function PurchaseReturnsPage() {
   const [saving, setSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<any>(null);
 
   const {
@@ -83,6 +92,22 @@ export default function PurchaseReturnsPage() {
   useEffect(() => {
     fetchSummary();
   }, []);
+
+  const openReturnDetails = async (ret: any) => {
+    setShowDetailsDialog(true);
+    setSelectedReturn(ret);
+    setDetailsLoading(true);
+    try {
+      const response = await purchaseReturnsApi.getById(ret._id);
+      if (response.success && response.data) {
+        setSelectedReturn(response.data);
+      }
+    } catch {
+      // Keep list row data if detail fetch fails
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
   const handleDeleteReturn = async () => {
     if (!selectedReturn) return;
@@ -187,6 +212,9 @@ export default function PurchaseReturnsPage() {
                       </div>
                       {getReasonBadge(ret.reason)}
                     </div>
+                    <div className="mt-3 text-sm text-slate-600 line-clamp-2">
+                      {formatLineItemNames(ret.items)}
+                    </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div className="rounded-xl bg-violet-50 px-3 py-2">
                         <p className="text-xs text-violet-600">Amount</p>
@@ -208,10 +236,7 @@ export default function PurchaseReturnsPage() {
                           variant="ghost"
                           size="icon"
                           className="rounded-xl"
-                          onClick={() => {
-                            setSelectedReturn(ret);
-                            setShowDetailsDialog(true);
-                          }}
+                          onClick={() => openReturnDetails(ret)}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -243,7 +268,7 @@ export default function PurchaseReturnsPage() {
                       <TableHead>Purchase #</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Supplier</TableHead>
-                      <TableHead>Items</TableHead>
+                      <TableHead>Products</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Reason</TableHead>
                       <TableHead>Refund</TableHead>
@@ -259,7 +284,11 @@ export default function PurchaseReturnsPage() {
                         <TableCell>{ret.purchaseNumber}</TableCell>
                         <TableCell>{formatSaleDateShort(ret.date)}</TableCell>
                         <TableCell>{ret.supplierName}</TableCell>
-                        <TableCell>{ret.itemsCount || ret.items?.length || 0}</TableCell>
+                        <TableCell className="max-w-[220px]">
+                          <span className="line-clamp-2 text-sm">
+                            {formatLineItemNames(ret.items)}
+                          </span>
+                        </TableCell>
                         <TableCell className="font-semibold text-violet-700">
                           {formatCurrency(ret.amount)}
                         </TableCell>
@@ -275,10 +304,7 @@ export default function PurchaseReturnsPage() {
                               variant="ghost"
                               size="icon"
                               className="rounded-xl h-8 w-8"
-                              onClick={() => {
-                                setSelectedReturn(ret);
-                                setShowDetailsDialog(true);
-                              }}
+                              onClick={() => openReturnDetails(ret)}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -356,11 +382,20 @@ export default function PurchaseReturnsPage() {
                 )}
                 <div className="border-t pt-4">
                   <h4 className="font-semibold mb-2">Items Returned</h4>
+                  {detailsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-violet-400" />
+                    </div>
+                  ) : (
                   <div className="overflow-x-auto rounded-xl ring-1 ring-violet-100/70">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-gradient-to-r from-violet-50 to-purple-50/80">
                           <TableHead>Product</TableHead>
+                          <TableHead>Brand</TableHead>
+                          <TableHead>Model</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>IMEI</TableHead>
                           <TableHead>Purchase Price</TableHead>
                           <TableHead>Return Price</TableHead>
                           <TableHead>Qty</TableHead>
@@ -371,11 +406,12 @@ export default function PurchaseReturnsPage() {
                         {selectedReturn.items?.map((item: any, idx: number) => (
                           <TableRow key={idx}>
                             <TableCell>
-                              <span className="font-medium">{item.productName}</span>
-                              {item.imei && (
-                                <span className="text-xs text-slate-500 ml-1">({item.imei})</span>
-                              )}
+                              <ProductNameCell item={item} showViewButton={false} />
                             </TableCell>
+                            <TableCell><LineItemBrandCell item={item} /></TableCell>
+                            <TableCell><LineItemModelCell item={item} /></TableCell>
+                            <TableCell><LineItemCategoryCell item={item} /></TableCell>
+                            <TableCell><LineItemImeiCell item={item} /></TableCell>
                             <TableCell>{formatCurrency(item.originalPrice || item.price)}</TableCell>
                             <TableCell>{formatCurrency(item.returnPrice || item.price)}</TableCell>
                             <TableCell>{item.quantity}</TableCell>
@@ -387,6 +423,7 @@ export default function PurchaseReturnsPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  )}
                 </div>
               </div>
             )}

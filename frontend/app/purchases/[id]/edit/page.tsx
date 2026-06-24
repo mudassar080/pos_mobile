@@ -46,6 +46,12 @@ import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '@/components/ui/combobox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  ProductNameCell,
+  LineItemBrandCell,
+  LineItemModelCell,
+  LineItemCategoryCell,
+} from '@/components/line-items/line-item-table-cells';
 
 interface PurchaseItem {
   id: string;
@@ -566,6 +572,24 @@ export default function EditPurchasePage() {
     new Set(products.map((p) => p.name).filter(Boolean))
   ).map((name) => ({ value: name, label: name }));
 
+  const buildItemCategory = (name: string, brandValue: string, modelValue: string) =>
+    [name, brandValue, modelValue].filter(Boolean).join(' - ');
+
+  const modalCategoryPreview = buildItemCategory(
+    productForm.name ? toTitleCase(productForm.name) : '',
+    productForm.brand ? toTitleCase(productForm.brand) : '',
+    productForm.model ? toTitleCase(productForm.model) : ''
+  );
+
+  const selectedProductData = products.find((p) => p._id === selectedProduct);
+  const selectedItemCategory = selectedProductData
+    ? buildItemCategory(
+        selectedProductData.name || '',
+        brand.trim() || selectedProductData.brand || '',
+        model.trim() || selectedProductData.model || ''
+      )
+    : '';
+
   const handleSaveProduct = () => {
     if (!productForm.name) {
       toast({
@@ -759,6 +783,8 @@ export default function EditPurchasePage() {
                         label: `${product.name || ''}${
                           product.brand ? ` | Brand: ${product.brand}` : ''
                         }${product.model ? ` | Model: ${product.model}` : ''}${
+                          product.category ? ` | Category: ${product.category}` : ''
+                        }${
                           product.sellingPrice
                             ? ` | Sale: ${formatCurrency(product.sellingPrice)}`
                             : ''
@@ -866,6 +892,14 @@ export default function EditPurchasePage() {
                             className="rounded-xl mt-1.5"
                           />
                         </div>
+                        <div className="sm:col-span-2 xl:col-span-3">
+                          <Label>Category</Label>
+                          <Input
+                            value={selectedItemCategory || '—'}
+                            readOnly
+                            className="rounded-xl mt-1.5 bg-white/80 text-slate-700"
+                          />
+                        </div>
                       </div>
                       <div className="mt-2">
                         <Button onClick={addItem} className={cn('w-full', purchaseBtnPrimary)}>
@@ -884,6 +918,9 @@ export default function EditPurchasePage() {
                         <TableHeader>
                           <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50/80">
                             <TableHead>Product</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>Model</TableHead>
+                            <TableHead>Category</TableHead>
                             <TableHead>IMEI / Qty</TableHead>
                             <TableHead>Price</TableHead>
                             <TableHead>Total</TableHead>
@@ -894,11 +931,25 @@ export default function EditPurchasePage() {
                           {items.map((item) => (
                             <TableRow key={item.id} className="hover:bg-indigo-50/20">
                               <TableCell>
-                                {item.product?.name ?? '—'}
-                                {item.product?._isTemp && (
-                                  <span className="ml-2 text-xs text-orange-600 font-medium">(New)</span>
-                                )}
+                                <ProductNameCell
+                                  item={{
+                                    product: item.product,
+                                    productName: item.product?.name,
+                                    imei: item.imei,
+                                    purchasePrice: item.price,
+                                    sellingPrice: item.product?.sellingPrice,
+                                  }}
+                                  showViewButton={false}
+                                  extra={
+                                    item.product?._isTemp ? (
+                                      <span className="text-xs text-orange-600 font-medium">(New)</span>
+                                    ) : undefined
+                                  }
+                                />
                               </TableCell>
+                              <TableCell><LineItemBrandCell item={{ product: item.product }} /></TableCell>
+                              <TableCell><LineItemModelCell item={{ product: item.product }} /></TableCell>
+                              <TableCell><LineItemCategoryCell item={{ product: item.product }} /></TableCell>
                               <TableCell className="font-mono text-sm">
                                 {item.imei ? (
                                   <span className="text-indigo-600">{item.imei}</span>
@@ -1051,6 +1102,18 @@ export default function EditPurchasePage() {
                   }
                   placeholder="e.g., 15 Pro Max"
                 />
+              </div>
+
+              <div>
+                <Label>Category</Label>
+                <Input
+                  value={modalCategoryPreview || '—'}
+                  readOnly
+                  className="bg-slate-50 text-slate-700"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Auto-generated from item name, brand, and model
+                </p>
               </div>
 
               <div className="flex gap-2 pt-4">

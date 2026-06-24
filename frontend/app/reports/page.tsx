@@ -44,6 +44,12 @@ import {
 import { paginatedParams } from '@/lib/pagination';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/utils/constant';
+import {
+  getLineItemBrand,
+  getLineItemCategory,
+  getLineItemModel,
+  getLineItemProductName,
+} from '@/lib/line-items';
 import { useToast } from '@/hooks/use-toast';
 import {
   ColorCard,
@@ -64,6 +70,7 @@ type ReportField =
   | 'sales-paid'
   | 'sales-due'
   | 'sales-profit'
+  | 'product-profit'
   | 'purchases'
   | 'purchase-paid'
   | 'purchase-due'
@@ -76,6 +83,18 @@ interface ReportRow {
   period: string;
   total: number;
   count: number;
+}
+
+interface ProductProfitRow {
+  key: string;
+  productName: string;
+  brand: string;
+  model: string;
+  category: string;
+  quantity: number;
+  salesAmount: number;
+  costAmount: number;
+  profit: number;
 }
 
 type DayBookRowType = 'Sale' | 'Purchase' | 'Expense' | 'Other Income';
@@ -101,6 +120,7 @@ const reportFields: Array<{
   { value: 'sales-paid', label: 'Sales Paid Amount', api: 'sales', kind: 'currency' },
   { value: 'sales-due', label: 'Sales Due Amount', api: 'sales', kind: 'currency' },
   { value: 'sales-profit', label: 'Sales Profit / Loss', api: 'sales', kind: 'currency' },
+  { value: 'product-profit', label: 'Product Profit', api: 'sales', kind: 'currency' },
   { value: 'purchases', label: 'Total Purchases', api: 'purchases', kind: 'currency' },
   { value: 'purchase-paid', label: 'Purchase Paid Amount', api: 'purchases', kind: 'currency' },
   { value: 'purchase-due', label: 'Purchase Due Amount', api: 'purchases', kind: 'currency' },
@@ -157,6 +177,49 @@ const getSaleProfit = (sale: any) => {
     const salePrice = item.price || 0;
     return sum + (salePrice - purchasePrice) * (item.quantity || 1);
   }, 0);
+};
+
+const buildProductProfitRows = (sales: any[]): ProductProfitRow[] => {
+  const groups = new Map<string, ProductProfitRow>();
+
+  for (const sale of sales) {
+    for (const item of sale.items || []) {
+      const productId =
+        typeof item.product === 'object' && item.product?._id
+          ? String(item.product._id)
+          : String(item.product || '');
+      const key = item.imei ? `${productId}:${item.imei}` : productId || getLineItemProductName(item);
+
+      const qty = item.quantity || 1;
+      const salePrice = item.price || 0;
+      const purchasePrice = item.product?.purchasePrice ?? 0;
+      const lineSales = salePrice * qty;
+      const lineCost = purchasePrice * qty;
+      const lineProfit = lineSales - lineCost;
+
+      const existing = groups.get(key);
+      if (existing) {
+        existing.quantity += qty;
+        existing.salesAmount += lineSales;
+        existing.costAmount += lineCost;
+        existing.profit += lineProfit;
+      } else {
+        groups.set(key, {
+          key,
+          productName: getLineItemProductName(item),
+          brand: getLineItemBrand(item),
+          model: getLineItemModel(item),
+          category: getLineItemCategory(item),
+          quantity: qty,
+          salesAmount: lineSales,
+          costAmount: lineCost,
+          profit: lineProfit,
+        });
+      }
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.profit - a.profit);
 };
 
 const getWeekNumber = (date: Date) => {
@@ -307,13 +370,37 @@ export default function ReportsPage() {
     reportFields.find((field) => field.value === generatedField) || reportFields[0];
 
   const reportRows = useMemo(
-    () => buildReportRows(records, generatedField, generatedGroupBy),
+    () =>
+      generatedField === 'product-profit'
+        ? []
+        : buildReportRows(records, generatedField, generatedGroupBy),
     [records, generatedField, generatedGroupBy]
   );
 
-  const reportTotal = reportRows.reduce((sum, row) => sum + row.total, 0);
-  const reportCount = reportRows.reduce((sum, row) => sum + row.count, 0);
-  const averagePerPeriod = reportRows.length > 0 ? reportTotal / reportRows.length : 0;
+  const productProfitRows = useMemo(
+    () => (generatedField === 'product-profit' ? buildProductProfitRows(records) : []),
+    [records, generatedField]
+  );
+
+  const reportTotal =
+    generatedField === 'product-profit'
+      ? productProfitRows.reduce((sum, row) => sum + row.profit, 0)
+      : reportRows.reduce((sum, row) => sum + row.total, 0);
+  const reportCount =
+    generatedField === 'product-profit'
+      ? productProfitRows.reduce((sum, row) => sum + row.quantity, 0)
+      : reportRows.reduce((sum, row) => sum + row.count, 0);
+  const averagePerPeriod =
+    generatedField === 'product-profit'
+      ? productProfitRows.length > 0
+        ? reportTotal / productProfitRows.length
+        : 0
+      : reportRows.length > 0
+        ? reportTotal / reportRows.length
+        : 0;
+
+  const productSalesTotal = productProfitRows.reduce((sum, row) => sum + row.salesAmount, 0);
+  const productCostTotal = productProfitRows.reduce((sum, row) => sum + row.costAmount, 0);
 
   const dayBookSummary = useMemo(() => {
     const sales = dayBookRows.filter((row) => row.type === 'Sale');
@@ -541,6 +628,31 @@ export default function ReportsPage() {
   };
 
   const exportCsv = () => {
+    if (generatedField === 'product-profit') {
+      const csvRows = [
+        ['Product', 'Brand', 'Model', 'Category', 'Qty Sold', 'Sales', 'Cost', 'Profit'],
+        ...productProfitRows.map((row) => [
+          row.productName,
+          row.brand,
+          row.model,
+          row.category,
+          String(row.quantity),
+          String(row.salesAmount),
+          String(row.costAmount),
+          String(row.profit),
+        ]),
+      ];
+      const csv = csvRows.map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `product-profit-report.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     const csvRows = [
       ['Period', generatedFieldConfig.label, 'Records'],
       ...reportRows.map((row) => [
@@ -604,7 +716,11 @@ export default function ReportsPage() {
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-600">Group By</Label>
-                <Select value={groupBy} onValueChange={(value) => setGroupBy(value as GroupBy)}>
+                <Select
+                  value={groupBy}
+                  onValueChange={(value) => setGroupBy(value as GroupBy)}
+                  disabled={reportField === 'product-profit'}
+                >
                   <SelectTrigger className="rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
@@ -615,6 +731,9 @@ export default function ReportsPage() {
                     <SelectItem value="yearly">Yearly</SelectItem>
                   </SelectContent>
                 </Select>
+                {reportField === 'product-profit' && (
+                  <p className="text-xs text-slate-500">Grouped by product (model & category)</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-600">From Date</Label>
@@ -773,18 +892,25 @@ export default function ReportsPage() {
               theme="bg-gradient-to-br from-slate-50 to-zinc-100 text-slate-900 ring-1 ring-slate-100"
             />
             <SummaryStat
-              label="Report Total"
+              label={generatedField === 'product-profit' ? 'Total Profit' : 'Report Total'}
               value={hasGenerated ? formatReportValue(reportTotal, generatedField) : '-'}
               icon={BarChart3}
               theme={
-                generatedField === 'sales-profit' && reportTotal < 0
+                (generatedField === 'sales-profit' || generatedField === 'product-profit') &&
+                reportTotal < 0
                   ? 'bg-gradient-to-br from-rose-50 to-red-100 text-rose-900 ring-1 ring-rose-100'
                   : 'bg-gradient-to-br from-emerald-50 to-green-100 text-emerald-900 ring-1 ring-emerald-100'
               }
             />
             <SummaryStat
-              label="Average Per Period"
-              value={hasGenerated ? formatReportValue(averagePerPeriod, generatedField) : '-'}
+              label={generatedField === 'product-profit' ? 'Products' : 'Average Per Period'}
+              value={
+                hasGenerated
+                  ? generatedField === 'product-profit'
+                    ? String(productProfitRows.length)
+                    : formatReportValue(averagePerPeriod, generatedField)
+                  : '-'
+              }
               icon={TrendingUp}
               theme="bg-gradient-to-br from-indigo-50 to-blue-100 text-indigo-900 ring-1 ring-indigo-100"
             />
@@ -831,14 +957,20 @@ export default function ReportsPage() {
         )}
 
         {view === 'report' && hasGenerated && (
-          <p className="text-sm text-slate-500 px-1">{reportCount} records included</p>
+          <p className="text-sm text-slate-500 px-1">
+            {generatedField === 'product-profit'
+              ? `${productProfitRows.length} products · ${reportCount} units sold`
+              : `${reportCount} records included`}
+          </p>
         )}
 
         {view === 'report' ? (
           <ColorCard
             title={
               hasGenerated
-                ? `${generatedFieldConfig.label} Report (${generatedGroupBy})`
+                ? generatedField === 'product-profit'
+                  ? `${generatedFieldConfig.label} Report`
+                  : `${generatedFieldConfig.label} Report (${generatedGroupBy})`
                 : 'Generated Report'
             }
             headerClassName="bg-gradient-to-r from-slate-50 via-zinc-50 to-gray-50 border-slate-100/50 text-slate-900"
@@ -847,6 +979,114 @@ export default function ReportsPage() {
               <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
                 Select a field, date range, and grouping, then generate the report.
               </div>
+            ) : generatedField === 'product-profit' && productProfitRows.length === 0 ? (
+              <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
+                No product sales found for the selected filters.
+              </div>
+            ) : generatedField === 'product-profit' ? (
+              <>
+                <div className="space-y-3 lg:hidden">
+                  {productProfitRows.map((row) => (
+                    <div
+                      key={row.key}
+                      className="rounded-2xl border border-slate-100/80 bg-gradient-to-br from-white to-slate-50/40 p-4 shadow-sm"
+                    >
+                      <p className="font-semibold text-slate-900">{row.productName}</p>
+                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                        <span>Brand: {row.brand || '—'}</span>
+                        <span>Model: {row.model || '—'}</span>
+                        <span className="col-span-2">Category: {row.category || '—'}</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <p className="text-xs text-slate-500">Qty sold</p>
+                          <p className="font-bold">{row.quantity}</p>
+                        </div>
+                        <div className="rounded-xl bg-indigo-50 px-3 py-2">
+                          <p className="text-xs text-indigo-600">Sales</p>
+                          <p className="font-bold text-indigo-800">{formatCurrency(row.salesAmount)}</p>
+                        </div>
+                        <div className="rounded-xl bg-amber-50 px-3 py-2">
+                          <p className="text-xs text-amber-700">Cost</p>
+                          <p className="font-bold text-amber-900">{formatCurrency(row.costAmount)}</p>
+                        </div>
+                        <div
+                          className={cn(
+                            'rounded-xl px-3 py-2',
+                            row.profit < 0 ? 'bg-rose-50' : 'bg-emerald-50'
+                          )}
+                        >
+                          <p className={cn('text-xs', row.profit < 0 ? 'text-rose-600' : 'text-emerald-600')}>
+                            Profit
+                          </p>
+                          <p
+                            className={cn(
+                              'font-bold',
+                              row.profit < 0 ? 'text-rose-800' : 'text-emerald-800'
+                            )}
+                          >
+                            {formatCurrency(row.profit)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden lg:block overflow-x-auto rounded-xl ring-1 ring-slate-100/70">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-slate-50 to-zinc-50/80">
+                        <TableHead>Product</TableHead>
+                        <TableHead>Brand</TableHead>
+                        <TableHead>Model</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Sales</TableHead>
+                        <TableHead className="text-right">Cost</TableHead>
+                        <TableHead className="text-right">Profit</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {productProfitRows.map((row) => (
+                        <TableRow key={row.key} className="hover:bg-slate-50/30">
+                          <TableCell className="font-medium text-slate-900">{row.productName}</TableCell>
+                          <TableCell>{row.brand || '—'}</TableCell>
+                          <TableCell>{row.model || '—'}</TableCell>
+                          <TableCell>{row.category || '—'}</TableCell>
+                          <TableCell className="text-right">{row.quantity}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.salesAmount)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(row.costAmount)}</TableCell>
+                          <TableCell
+                            className={cn(
+                              'text-right font-semibold',
+                              row.profit < 0 ? 'text-rose-700' : 'text-emerald-700'
+                            )}
+                          >
+                            {formatCurrency(row.profit)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {productProfitRows.length > 0 && (
+                        <TableRow className="bg-slate-50/80 font-semibold">
+                          <TableCell colSpan={4}>Total</TableCell>
+                          <TableCell className="text-right">{reportCount}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(productSalesTotal)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(productCostTotal)}</TableCell>
+                          <TableCell
+                            className={cn(
+                              'text-right',
+                              reportTotal < 0 ? 'text-rose-700' : 'text-emerald-700'
+                            )}
+                          >
+                            {formatCurrency(reportTotal)}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             ) : reportRows.length === 0 ? (
               <div className="text-center text-slate-500 py-12 rounded-2xl bg-slate-50/50 ring-1 ring-slate-100">
                 No records found for the selected filters.

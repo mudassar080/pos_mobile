@@ -4,6 +4,73 @@ const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
+function getSaleCustomerId(sale) {
+  if (!sale?.customer) return null;
+  return sale.customer._id || sale.customer;
+}
+
+function getProductId(product) {
+  if (!product) return '';
+  if (typeof product === 'object' && product._id) return String(product._id);
+  return String(product);
+}
+
+function getReturnItemKey(item) {
+  return item.imei || getProductId(item.product);
+}
+
+function getSaleLineItemKey(saleItem) {
+  return saleItem.imei || getProductId(saleItem.product);
+}
+
+async function getReturnedQuantityMapForSale(saleId) {
+  const existingReturns = await SaleReturn.find({ sale: saleId });
+  const returnedMap = {};
+
+  for (const ret of existingReturns) {
+    for (const item of ret.items) {
+      const key = getReturnItemKey(item);
+      returnedMap[key] = (returnedMap[key] || 0) + item.quantity;
+    }
+  }
+
+  return returnedMap;
+}
+
+function findSaleLineItem(sale, item) {
+  const productId = getProductId(item.product);
+  return sale.items.find(
+    (saleItem) =>
+      (item.imei && saleItem.imei === item.imei) ||
+      getProductId(saleItem.product) === productId
+  );
+}
+
+function isSaleFullyReturned(sale, returnedMap) {
+  return sale.items.every((saleItem) => {
+    const key = getSaleLineItemKey(saleItem);
+    return (returnedMap[key] || 0) >= saleItem.quantity;
+  });
+}
+
+async function syncSaleReturnStatus(sale) {
+  const returnedMap = await getReturnedQuantityMapForSale(sale._id);
+
+  if (isSaleFullyReturned(sale, returnedMap)) {
+    sale.status = 'returned';
+  } else if (sale.status === 'returned') {
+    if (sale.paid >= sale.amount) {
+      sale.status = 'paid';
+    } else if (sale.paid > 0) {
+      sale.status = 'partial';
+    } else {
+      sale.status = 'credit';
+    }
+  }
+
+  await sale.save();
+}
+
 // @desc    Get all sale returns
 // @route   GET /api/sale-returns
 // @access  Public
@@ -48,7 +115,8 @@ const getSaleReturns = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .populate('customer', 'name phone')
-      .populate('sale', 'invoiceNumber');
+      .populate('sale', 'invoiceNumber')
+      .populate('items.product', 'name brand model category imei purchasePrice sellingPrice');
 
     const total = await SaleReturn.countDocuments(query);
 
@@ -73,7 +141,8 @@ const getSaleReturn = async (req, res) => {
   try {
     const saleReturn = await SaleReturn.findById(req.params.id)
       .populate('customer', 'name phone email')
-      .populate('sale');
+      .populate('sale')
+      .populate('items.product', 'name brand model category imei purchasePrice sellingPrice');
 
     if (!saleReturn) {
       return res.status(404).json({
@@ -95,6 +164,70 @@ const getSaleReturn = async (req, res) => {
   }
 };
 
+// @desc    Get sales that still have items available to return
+// @route   GET /api/sale-returns/returnable-sales
+// @access  Public
+const getReturnableSales = async (req, res) => {
+  try {
+    const sales = await Sale.find({ status: { $nin: ['cancelled', 'returned'] } })
+      .populate('customer', 'name phone')
+      .populate(
+        'items.product',
+        'name category brand model purchasePrice sellingPrice imei'
+      )
+      .sort({ date: -1 })
+      .limit(500);
+
+    const returnable = [];
+
+    for (const sale of sales) {
+      const returnedMap = await getReturnedQuantityMapForSale(sale._id);
+
+      if (isSaleFullyReturned(sale, returnedMap)) {
+        if (sale.status !== 'returned') {
+          sale.status = 'returned';
+          await sale.save();
+        }
+        continue;
+      }
+
+      returnable.push(sale);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: returnable,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching returnable sales',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get already-returned quantities for a specific sale
+// @route   GET /api/sale-returns/returned-quantities/:saleId
+// @access  Public
+const getReturnedQuantities = async (req, res) => {
+  try {
+    const { saleId } = req.params;
+    const returnedMap = await getReturnedQuantityMapForSale(saleId);
+
+    res.status(200).json({
+      success: true,
+      data: returnedMap,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching returned quantities',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Create sale return
 // @route   POST /api/sale-returns
 // @access  Public
@@ -111,6 +244,39 @@ const createSaleReturn = async (req, res) => {
       });
     }
 
+    if (!items?.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one item is required for a sale return',
+      });
+    }
+
+    if (sale.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot return items from a cancelled sale',
+      });
+    }
+
+    if (sale.status === 'returned') {
+      return res.status(400).json({
+        success: false,
+        message: 'All items from this sale have already been returned',
+      });
+    }
+
+    const customerId = getSaleCustomerId(sale);
+    const resolvedRefundMethod = refundMethod || 'Cash';
+
+    if (resolvedRefundMethod === 'Credit' && !customerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit refund is not available for walk-in sales without a customer',
+      });
+    }
+
+    const alreadyReturned = await getReturnedQuantityMapForSale(saleId);
+
     // Calculate total amount, profit, and cost impact (loss/profit vs purchase price)
     let totalAmount = 0;
     let totalProfit = 0;
@@ -123,6 +289,25 @@ const createSaleReturn = async (req, res) => {
         return res.status(404).json({
           success: false,
           message: `Product not found: ${item.product}`,
+        });
+      }
+
+      const key = getReturnItemKey(item);
+      const alreadyReturnedQty = alreadyReturned[key] || 0;
+      const saleItem = findSaleLineItem(sale, item);
+
+      if (!saleItem) {
+        return res.status(400).json({
+          success: false,
+          message: `Item not found in original sale: ${product.name}`,
+        });
+      }
+
+      const maxReturnable = saleItem.quantity - alreadyReturnedQty;
+      if (item.quantity > maxReturnable) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot return ${item.quantity} of ${product.name}. Only ${maxReturnable} remaining (${alreadyReturnedQty} already returned).`,
         });
       }
 
@@ -180,23 +365,25 @@ const createSaleReturn = async (req, res) => {
     const saleReturn = await SaleReturn.create({
       sale: saleId,
       invoiceNumber: sale.invoiceNumber,
-      customer: sale.customer._id,
-      customerName: sale.customerName,
+      customer: customerId,
+      customerName: sale.customerName || 'Walk-in Customer',
       items: returnItems,
       amount: totalAmount,
       profit: totalProfit,
       costImpact: totalCostImpact,
       reason: reason || 'Defective',
       notes: notes || '',
-      refundMethod: refundMethod || 'Cash',
+      refundMethod: resolvedRefundMethod,
     });
 
     // Update customer outstanding — only refund the returnPrice amount
-    if (refundMethod === 'Credit') {
-      await Customer.findByIdAndUpdate(sale.customer._id, {
+    if (resolvedRefundMethod === 'Credit' && customerId) {
+      await Customer.findByIdAndUpdate(customerId, {
         $inc: { outstanding: -totalAmount },
       });
     }
+
+    await syncSaleReturnStatus(sale);
 
     res.status(201).json({
       success: true,
@@ -244,13 +431,20 @@ const deleteSaleReturn = async (req, res) => {
     }
 
     // Restore customer outstanding if it was credited
-    if (saleReturn.refundMethod === 'Credit') {
+    if (saleReturn.refundMethod === 'Credit' && saleReturn.customer) {
       await Customer.findByIdAndUpdate(saleReturn.customer, {
         $inc: { outstanding: saleReturn.amount },
       });
     }
 
+    const saleId = saleReturn.sale;
+
     await SaleReturn.findByIdAndDelete(req.params.id);
+
+    const sale = await Sale.findById(saleId);
+    if (sale) {
+      await syncSaleReturnStatus(sale);
+    }
 
     res.status(200).json({
       success: true,
@@ -342,6 +536,8 @@ const getSaleReturnSummary = async (req, res) => {
 module.exports = {
   getSaleReturns,
   getSaleReturn,
+  getReturnableSales,
+  getReturnedQuantities,
   createSaleReturn,
   deleteSaleReturn,
   getSaleReturnSummary,

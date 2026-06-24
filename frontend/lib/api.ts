@@ -214,6 +214,9 @@ export const saleReturnsApi = {
     const query = params ? `?${new URLSearchParams(params)}` : '';
     return fetchApi<any>(`/sale-returns/summary${query}`);
   },
+  getReturnedQuantities: (saleId: string) =>
+    fetchApi<any>(`/sale-returns/returned-quantities/${saleId}`),
+  getReturnableSales: () => fetchApi<any[]>('/sale-returns/returnable-sales'),
 };
 
 // Purchases API

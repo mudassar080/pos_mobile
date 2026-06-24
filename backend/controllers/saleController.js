@@ -2,6 +2,7 @@ const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
 const logActivity = require('../utils/logActivity');
+const { calculateSaleDiscount } = require('../utils/saleDiscount');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // @desc    Get all sales
@@ -51,7 +52,7 @@ const getSales = async (req, res) => {
 
     const sales = await Sale.find(query)
       .populate('customer', 'name phone')
-      .populate('items.product', 'name category brand purchasePrice')
+      .populate('items.product', 'name category brand model purchasePrice sellingPrice imei')
       .sort(sort)
       .skip(skip)
       .limit(limit);
@@ -79,7 +80,7 @@ const getSale = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
       .populate('customer', 'name phone email address')
-      .populate('items.product', 'name category brand');
+      .populate('items.product', 'name category brand model purchasePrice sellingPrice imei');
 
     if (!sale) {
       return res.status(404).json({
@@ -106,11 +107,11 @@ const getSale = async (req, res) => {
 // @access  Public
 const createSale = async (req, res) => {
   try {
-    const { items, customer, paid, paymentMode, notes } = req.body;
+    const { items, customer, paid, paymentMode, notes, discountType, discountValue } = req.body;
 
     // Validate and prepare items
     const preparedItems = [];
-    let totalAmount = 0;
+    let subtotal = 0;
 
     for (const item of items) {
       const product = await Product.findById(item.product);
@@ -142,8 +143,11 @@ const createSale = async (req, res) => {
         total: itemTotal,
       });
 
-      totalAmount += itemTotal;
+      subtotal += itemTotal;
     }
+
+    const pricing = calculateSaleDiscount(subtotal, discountType, discountValue);
+    const totalAmount = pricing.amount;
 
     // Get customer name if customer provided
     let customerName = 'Walk-in Customer';
@@ -168,6 +172,10 @@ const createSale = async (req, res) => {
       customer: customer && customer !== 'walk-in' ? customer : null,
       customerName,
       items: preparedItems,
+      subtotal: pricing.subtotal,
+      discountType: pricing.discountType,
+      discountValue: pricing.discountValue,
+      discountAmount: pricing.discountAmount,
       amount: totalAmount,
       paid: paidAmount,
       paymentHistory:

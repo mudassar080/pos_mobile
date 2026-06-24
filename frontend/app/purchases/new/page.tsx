@@ -41,6 +41,13 @@ import {
 } from '@/components/purchases/purchases-ui';
 import { useRouter } from 'next/navigation';
 import { formatCurrency } from '@/utils/constant';
+import {
+  ProductNameCell,
+  LineItemBrandCell,
+  LineItemModelCell,
+  LineItemCategoryCell,
+  LineItemImeiCell,
+} from '@/components/line-items/line-item-table-cells';
 import { productsApi, suppliersApi, purchasesApi } from '@/lib/api';
 import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
@@ -744,6 +751,9 @@ export default function NewPurchasePage() {
                         <TableHeader>
                           <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50/80">
                             <TableHead>Product</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>Model</TableHead>
+                            <TableHead>Category</TableHead>
                             <TableHead>IMEI / Qty</TableHead>
                             <TableHead>Price</TableHead>
                             <TableHead>Total</TableHead>
@@ -754,11 +764,25 @@ export default function NewPurchasePage() {
                           {items.map((item) => (
                             <TableRow key={item.id} className="hover:bg-indigo-50/20">
                               <TableCell>
-                                {item.product.name}
-                                {item.product._isTemp && (
-                                  <span className="ml-2 text-xs text-orange-600 font-medium">(New)</span>
-                                )}
+                                <ProductNameCell
+                                  item={{
+                                    product: item.product,
+                                    productName: item.product.name,
+                                    imei: item.imei,
+                                    purchasePrice: item.price,
+                                    sellingPrice: item.product.sellingPrice,
+                                  }}
+                                  showViewButton={false}
+                                  extra={
+                                    item.product._isTemp ? (
+                                      <span className="text-xs text-orange-600 font-medium">(New)</span>
+                                    ) : undefined
+                                  }
+                                />
                               </TableCell>
+                              <TableCell><LineItemBrandCell item={{ product: item.product }} /></TableCell>
+                              <TableCell><LineItemModelCell item={{ product: item.product }} /></TableCell>
+                              <TableCell><LineItemCategoryCell item={{ product: item.product }} /></TableCell>
                               <TableCell className="font-mono text-sm">
                                 {item.imei ? (
                                   <span className="text-indigo-600">{item.imei}</span>

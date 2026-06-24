@@ -85,6 +85,26 @@ const saleSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    subtotal: {
+      type: Number,
+      min: [0, 'Subtotal cannot be negative'],
+      default: 0,
+    },
+    discountType: {
+      type: String,
+      enum: ['none', 'amount', 'percentage'],
+      default: 'none',
+    },
+    discountValue: {
+      type: Number,
+      default: 0,
+      min: [0, 'Discount value cannot be negative'],
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Discount amount cannot be negative'],
+    },
     amount: {
       type: Number,
       required: true,

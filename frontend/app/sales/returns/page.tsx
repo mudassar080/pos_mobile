@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { usePaginatedList } from '@/hooks/use-paginated-list';
 import { ListPagination } from '@/components/ui/list-pagination';
 import { MainLayout } from '@/components/layout/main-layout';
@@ -15,11 +16,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,10 +33,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Search, Trash2, Eye, RotateCcw, DollarSign, CalendarDays, Tag } from 'lucide-react';
+import { Loader2, Search, Trash2, Eye, RotateCcw, DollarSign, CalendarDays, Tag, MoreVertical } from 'lucide-react';
 import { saleReturnsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/utils/constant';
+import { formatLineItemNames } from '@/lib/line-items';
 import {
   ColorCard,
   formatSaleDate,
@@ -49,10 +52,8 @@ import {
 export default function SalesReturnsPage() {
   const { toast } = useToast();
   const [summary, setSummary] = useState<any>(null);
-  const [saving, setSaving] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  const [selectedReturn, setSelectedReturn] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; num: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const {
     items: returns,
@@ -84,18 +85,17 @@ export default function SalesReturnsPage() {
     fetchSummary();
   }, []);
 
-  const handleDeleteReturn = async () => {
-    if (!selectedReturn) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
 
-    setSaving(true);
+    setDeleting(true);
     try {
-      await saleReturnsApi.delete(selectedReturn._id);
+      await saleReturnsApi.delete(deleteTarget.id);
       toast({
         title: 'Success',
         description: 'Sale return deleted successfully',
       });
-      setShowDeleteDialog(false);
-      setSelectedReturn(null);
+      setDeleteTarget(null);
       await refetch();
       await fetchSummary();
     } catch (error: any) {
@@ -105,9 +105,39 @@ export default function SalesReturnsPage() {
         variant: 'destructive',
       });
     } finally {
-      setSaving(false);
+      setDeleting(false);
     }
   };
+
+  const renderReturnActions = (ret: any, mobile = false) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={mobile ? 'outline' : 'ghost'}
+          size={mobile ? 'sm' : 'icon'}
+          className={mobile ? 'rounded-lg' : 'h-8 w-8 rounded-lg'}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem asChild>
+          <Link href={`/sales/returns/${ret._id}`}>
+            <Eye className="mr-2 h-4 w-4" />
+            View details
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-red-600 focus:text-red-600"
+          onSelect={() => setDeleteTarget({ id: ret._id, num: ret.returnNumber })}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
     <MainLayout>
@@ -187,6 +217,9 @@ export default function SalesReturnsPage() {
                       </div>
                       {getReasonBadge(ret.reason)}
                     </div>
+                    <div className="mt-3 text-sm text-slate-600 line-clamp-2">
+                      {formatLineItemNames(ret.items)}
+                    </div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                       <div className="rounded-xl bg-orange-50 px-3 py-2">
                         <p className="text-xs text-orange-600">Amount</p>
@@ -207,30 +240,7 @@ export default function SalesReturnsPage() {
                       <Badge variant="outline" className="rounded-lg">
                         {ret.refundMethod}
                       </Badge>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedReturn(ret);
-                            setShowDetailsDialog(true);
-                          }}
-                          className="text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedReturn(ret);
-                            setShowDeleteDialog(true);
-                          }}
-                          className="text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      <div className="flex justify-end">{renderReturnActions(ret, true)}</div>
                     </div>
                   </div>
                 ))}
@@ -250,7 +260,7 @@ export default function SalesReturnsPage() {
                       <TableHead>Invoice #</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Items</TableHead>
+                      <TableHead>Products</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Profit</TableHead>
                       <TableHead>Reason</TableHead>
@@ -265,7 +275,11 @@ export default function SalesReturnsPage() {
                         <TableCell>{ret.invoiceNumber}</TableCell>
                         <TableCell className="text-slate-600">{formatSaleDate(ret.date)}</TableCell>
                         <TableCell>{ret.customerName}</TableCell>
-                        <TableCell>{ret.itemsCount || ret.items?.length || 0}</TableCell>
+                        <TableCell className="max-w-[220px]">
+                          <span className="line-clamp-2 text-sm">
+                            {formatLineItemNames(ret.items)}
+                          </span>
+                        </TableCell>
                         <TableCell className="font-medium text-orange-700">
                           {formatCurrency(ret.amount)}
                         </TableCell>
@@ -287,30 +301,7 @@ export default function SalesReturnsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedReturn(ret);
-                                setShowDetailsDialog(true);
-                              }}
-                              className="text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedReturn(ret);
-                                setShowDeleteDialog(true);
-                              }}
-                              className="text-red-600 hover:bg-red-50 rounded-lg"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          <div className="flex justify-end">{renderReturnActions(ret)}</div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -330,121 +321,26 @@ export default function SalesReturnsPage() {
           )}
         </ColorCard>
 
-        {/* Details Dialog */}
-        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-          <DialogContent className="max-w-2xl rounded-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-orange-900">
-                Return Details — {selectedReturn?.returnNumber}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[
-                  { label: 'Invoice', value: selectedReturn?.invoiceNumber },
-                  { label: 'Customer', value: selectedReturn?.customerName },
-                  { label: 'Date', value: selectedReturn?.date ? formatSaleDate(selectedReturn.date) : '-' },
-                  { label: 'Return Amount', value: formatCurrency(selectedReturn?.amount), highlight: 'text-orange-700' },
-                  {
-                    label: 'Cost Impact',
-                    value: `${(selectedReturn?.costImpact ?? 0) >= 0 ? 'Profit ' : 'Loss '}${formatCurrency(Math.abs(selectedReturn?.costImpact ?? 0))}`,
-                    highlight: (selectedReturn?.costImpact ?? 0) >= 0 ? 'text-green-600' : 'text-red-600',
-                  },
-                  { label: 'Refund Method', value: selectedReturn?.refundMethod },
-                ].map((field) => (
-                  <div key={field.label} className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">{field.label}</p>
-                    <p className={`font-semibold mt-0.5 ${field.highlight || 'text-slate-900'}`}>
-                      {field.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-xl bg-orange-50 p-3 ring-1 ring-orange-100">
-                <p className="text-xs text-orange-600">Reason</p>
-                <div className="mt-1">{selectedReturn?.reason && getReasonBadge(selectedReturn.reason)}</div>
-              </div>
-              {selectedReturn?.notes && (
-                <div className="rounded-xl bg-amber-50 p-3 ring-1 ring-amber-100">
-                  <p className="text-xs text-amber-700">Notes</p>
-                  <p className="text-sm text-amber-900 mt-0.5">{selectedReturn.notes}</p>
-                </div>
-              )}
-              <div>
-                <h4 className="font-semibold mb-2 text-slate-800">Items Returned</h4>
-                <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200/70">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50">
-                        <TableHead>Product</TableHead>
-                        <TableHead>Purchase</TableHead>
-                        <TableHead>Sold</TableHead>
-                        <TableHead>Return</TableHead>
-                        <TableHead>Qty</TableHead>
-                        <TableHead className="text-right">P/L</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedReturn?.items?.map((item: any, idx: number) => {
-                        const costImpact = item.costImpact ?? 0;
-                        return (
-                          <TableRow key={idx}>
-                            <TableCell>
-                              <span className="font-medium">{item.productName}</span>
-                              {item.imei && (
-                                <span className="text-xs text-slate-500 ml-1">({item.imei})</span>
-                              )}
-                              <Badge variant="outline" className="ml-2 text-xs rounded-md">
-                                {item.condition}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{formatCurrency(item.purchasePrice ?? 0)}</TableCell>
-                            <TableCell>{formatCurrency(item.originalPrice || item.price)}</TableCell>
-                            <TableCell>{formatCurrency(item.returnPrice || item.price)}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell className="text-right">
-                              <span
-                                className={
-                                  costImpact >= 0
-                                    ? 'text-green-600 font-semibold'
-                                    : 'text-red-600 font-semibold'
-                                }
-                              >
-                                {costImpact >= 0 ? 'Profit ' : 'Loss '}
-                                {formatCurrency(Math.abs(costImpact))}
-                              </span>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
           <AlertDialogContent className="rounded-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Sale Return</AlertDialogTitle>
               <AlertDialogDescription>
                 Are you sure you want to delete return{' '}
-                <strong>{selectedReturn?.returnNumber}</strong>? This will reverse stock changes and
-                customer balance adjustments.
+                <strong>{deleteTarget?.num}</strong>? This will reverse stock changes and customer
+                balance adjustments.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={saving} className="rounded-xl">
+              <AlertDialogCancel disabled={deleting} className="rounded-xl">
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleDeleteReturn}
-                disabled={saving}
+                onClick={confirmDelete}
+                disabled={deleting}
                 className="rounded-xl bg-red-600 hover:bg-red-700"
               >
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>

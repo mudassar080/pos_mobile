@@ -28,6 +28,14 @@ import { purchaseReturnsApi, purchasesApi } from '@/lib/api';
 import { paginatedParams } from '@/lib/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, REFUND_METHODS } from '@/utils/constant';
+import { normalizeSaleLineItem } from '@/lib/line-items';
+import {
+  ProductNameCell,
+  LineItemBrandCell,
+  LineItemModelCell,
+  LineItemCategoryCell,
+  LineItemImeiCell,
+} from '@/components/line-items/line-item-table-cells';
 import { Combobox } from '@/components/ui/combobox';
 import {
   ColorCard,
@@ -101,17 +109,13 @@ export default function NewPurchaseReturnPage() {
           const remainingQty = Math.max(0, item.quantity - alreadyReturned);
           const prod = item.product;
           return {
-            product: prod?._id || item.product,
-            productName: item.productName,
-            imei: item.imei,
+            ...normalizeSaleLineItem(item),
             quantity: 0,
             maxQuantity: remainingQty,
             originalPurchaseQty: item.quantity,
             alreadyReturned,
             price: item.price,
             returnPrice: item.price,
-            brand: prod?.brand || '',
-            model: prod?.model || '',
             lastPurchasePrice: prod?.lastPurchasePrice ?? prod?.purchasePrice ?? 0,
           };
         })
@@ -121,17 +125,13 @@ export default function NewPurchaseReturnPage() {
         purchase.items.map((item: any) => {
           const p = item.product;
           return {
-            product: p?._id || item.product,
-            productName: item.productName,
-            imei: item.imei,
+            ...normalizeSaleLineItem(item),
             quantity: 0,
             maxQuantity: item.quantity,
             originalPurchaseQty: item.quantity,
             alreadyReturned: 0,
             price: item.price,
             returnPrice: item.price,
-            brand: p?.brand || '',
-            model: p?.model || '',
             lastPurchasePrice: p?.lastPurchasePrice ?? p?.purchasePrice ?? 0,
           };
         })
@@ -342,16 +342,18 @@ export default function NewPurchaseReturnPage() {
                               fullyReturned && 'opacity-50'
                             )}
                           >
-                            <p className="font-semibold text-slate-900">{item.productName}</p>
+                            <ProductNameCell item={item} showViewButton={false} />
+                            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+                              <span>Brand: <LineItemBrandCell item={item} /></span>
+                              <span>Model: <LineItemModelCell item={item} /></span>
+                              <span>Category: <LineItemCategoryCell item={item} /></span>
+                              <span>IMEI: <LineItemImeiCell item={item} /></span>
+                            </div>
                             {item.alreadyReturned > 0 && (
-                              <p className="text-xs text-orange-600 mt-0.5">
-                                {item.alreadyReturned} of {item.originalPurchaseQty} already
-                                returned
+                              <p className="text-xs text-orange-600 mt-1">
+                                {item.alreadyReturned} of {item.originalPurchaseQty} already returned
                               </p>
                             )}
-                            <p className="text-xs font-mono text-violet-600 mt-1">
-                              {item.imei || `Max qty: ${item.maxQuantity}`}
-                            </p>
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               <div>
                                 <Label className="text-xs">Return Price</Label>
@@ -405,6 +407,9 @@ export default function NewPurchaseReturnPage() {
                         <TableHeader>
                           <TableRow className="bg-gradient-to-r from-violet-50 to-purple-50/80">
                             <TableHead>Product</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>Model</TableHead>
+                            <TableHead>Category</TableHead>
                             <TableHead>IMEI</TableHead>
                             <TableHead>Purchase Price</TableHead>
                             <TableHead>Return Price</TableHead>
@@ -426,17 +431,18 @@ export default function NewPurchaseReturnPage() {
                                 )}
                               >
                                 <TableCell>
-                                  <span className="font-medium">{item.productName}</span>
+                                  <ProductNameCell item={item} showViewButton={false} />
                                   {item.alreadyReturned > 0 && (
-                                    <span className="block text-xs text-orange-600">
+                                    <p className="text-xs text-orange-600 mt-1">
                                       {item.alreadyReturned} of {item.originalPurchaseQty} already
                                       returned
-                                    </span>
+                                    </p>
                                   )}
                                 </TableCell>
-                                <TableCell className="font-mono text-sm">
-                                  {item.imei || '-'}
-                                </TableCell>
+                                <TableCell><LineItemBrandCell item={item} /></TableCell>
+                                <TableCell><LineItemModelCell item={item} /></TableCell>
+                                <TableCell><LineItemCategoryCell item={item} /></TableCell>
+                                <TableCell><LineItemImeiCell item={item} /></TableCell>
                                 <TableCell>{formatCurrency(item.price)}</TableCell>
                                 <TableCell>
                                   <Input

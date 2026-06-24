@@ -5,6 +5,9 @@ const Supplier = require('../models/Supplier');
 const logActivity = require('../utils/logActivity');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
+const PURCHASE_ITEM_PRODUCT_FIELDS =
+  'name category brand model purchasePrice lastPurchasePrice sellingPrice imei';
+
 const normalizeImei = (value) =>
   value == null || String(value).trim() === '' ? '' : String(value).trim();
 
@@ -171,7 +174,7 @@ const getPurchases = async (req, res) => {
 
     const purchases = await Purchase.find(query)
       .populate('supplier', 'name phone')
-      .populate('items.product', 'name category brand model purchasePrice lastPurchasePrice')
+      .populate('items.product', PURCHASE_ITEM_PRODUCT_FIELDS)
       .sort(sort)
       .skip(skip)
       .limit(limit);
@@ -199,7 +202,7 @@ const getPurchase = async (req, res) => {
   try {
     const purchase = await Purchase.findById(req.params.id)
       .populate('supplier', 'name phone email address')
-      .populate('items.product', 'name category brand');
+      .populate('items.product', PURCHASE_ITEM_PRODUCT_FIELDS);
 
     if (!purchase) {
       return res.status(404).json({
@@ -475,7 +478,7 @@ const updatePurchase = async (req, res) => {
       await purchase.save();
       const updated = await Purchase.findById(req.params.id)
         .populate('supplier', 'name phone email address')
-        .populate('items.product', 'name category brand');
+        .populate('items.product', PURCHASE_ITEM_PRODUCT_FIELDS);
       return res.status(200).json({
         success: true,
         message: 'Purchase updated',
@@ -569,7 +572,7 @@ const updatePurchase = async (req, res) => {
 
     const updated = await Purchase.findById(req.params.id)
       .populate('supplier', 'name phone email address')
-      .populate('items.product', 'name category brand');
+      .populate('items.product', PURCHASE_ITEM_PRODUCT_FIELDS);
 
     await logActivity(req, {
       action: 'update',

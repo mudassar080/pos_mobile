@@ -48,7 +48,8 @@ const getPurchaseReturns = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .populate('supplier', 'name phone')
-      .populate('purchase', 'purchaseNumber');
+      .populate('purchase', 'purchaseNumber')
+      .populate('items.product', 'name brand model category imei purchasePrice sellingPrice lastPurchasePrice');
 
     const total = await PurchaseReturn.countDocuments(query);
 
@@ -73,7 +74,8 @@ const getPurchaseReturn = async (req, res) => {
   try {
     const purchaseReturn = await PurchaseReturn.findById(req.params.id)
       .populate('supplier', 'name phone email')
-      .populate('purchase');
+      .populate('purchase')
+      .populate('items.product', 'name brand model category imei purchasePrice sellingPrice lastPurchasePrice');
 
     if (!purchaseReturn) {
       return res.status(404).json({
