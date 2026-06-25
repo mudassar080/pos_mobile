@@ -41,6 +41,17 @@ import { ColorCard, SalesPageHero, STAT_GRID_CLASS, SummaryStat } from '@/compon
 const reasons = ['Defective', 'Wrong Item', 'Not Satisfied', 'Damaged', 'Other'];
 const conditions = ['resellable', 'damaged'];
 
+type SaleReturnLineItem = ReturnType<typeof normalizeSaleLineItem> & {
+  quantity: number;
+  maxQuantity: number;
+  originalSaleQty: number;
+  alreadyReturned: number;
+  price: number;
+  returnPrice: number;
+  condition: string;
+  selected: boolean;
+};
+
 export default function NewSalesReturnPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -55,7 +66,7 @@ export default function NewSalesReturnPage() {
     refundMethod: 'Cash',
     notes: '',
   });
-  const [returnItems, setReturnItems] = useState<any[]>([]);
+  const [returnItems, setReturnItems] = useState<SaleReturnLineItem[]>([]);
 
   const fetchSales = async () => {
     try {
@@ -94,7 +105,7 @@ export default function NewSalesReturnPage() {
       const returnedRes = await saleReturnsApi.getReturnedQuantities(saleId);
       const returnedMap = returnedRes.success ? returnedRes.data : {};
 
-      const items = sale.items.map((item: any) => {
+      const items: SaleReturnLineItem[] = sale.items.map((item: any) => {
         const key = item.imei || (item.product?._id || item.product);
         const alreadyReturned = returnedMap[key] || 0;
         const remainingQty = Math.max(0, item.quantity - alreadyReturned);

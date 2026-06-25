@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { generateNextDocumentNumber } = require('../utils/generateDocumentNumber');
 
 const purchaseItemSchema = new mongoose.Schema({
   product: {
@@ -125,8 +126,16 @@ const purchaseSchema = new mongoose.Schema(
 // Generate purchase number before saving
 purchaseSchema.pre('save', async function (next) {
   if (!this.purchaseNumber) {
-    const count = await this.constructor.countDocuments();
-    this.purchaseNumber = `PUR${(count + 1).toString().padStart(3, '0')}`;
+    try {
+      this.purchaseNumber = await generateNextDocumentNumber(
+        this.constructor,
+        'purchaseNumber',
+        'PUR',
+        3
+      );
+    } catch (error) {
+      return next(error);
+    }
   }
   // Calculate items count
   this.itemsCount = this.items.reduce((sum, item) => sum + item.quantity, 0);

@@ -267,8 +267,7 @@ const createPurchase = async (req, res) => {
 
     const balance = totalAmount - paidAmount;
 
-    // Create purchase
-    const purchase = await Purchase.create({
+    const purchaseData = {
       supplier,
       supplierName: supplierDoc.name,
       items: preparedItems,
@@ -289,7 +288,21 @@ const createPurchase = async (req, res) => {
       balance,
       status,
       notes,
-    });
+    };
+
+    let purchase;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        purchase = await Purchase.create(purchaseData);
+        break;
+      } catch (error) {
+        const isDuplicateNumber =
+          error?.code === 11000 && error?.keyPattern?.purchaseNumber;
+        if (!isDuplicateNumber || attempt === 4) {
+          throw error;
+        }
+      }
+    }
 
     await applyPreparedItemsToInventory(preparedItems, supplier);
 

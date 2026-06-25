@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { generateNextDocumentNumber } = require('../utils/generateDocumentNumber');
 
 const saleItemSchema = new mongoose.Schema({
   product: {
@@ -144,8 +145,16 @@ const saleSchema = new mongoose.Schema(
 // Generate invoice number before saving
 saleSchema.pre('save', async function (next) {
   if (!this.invoiceNumber) {
-    const count = await this.constructor.countDocuments();
-    this.invoiceNumber = `INV${(count + 1).toString().padStart(3, '0')}`;
+    try {
+      this.invoiceNumber = await generateNextDocumentNumber(
+        this.constructor,
+        'invoiceNumber',
+        'INV',
+        3
+      );
+    } catch (error) {
+      return next(error);
+    }
   }
   // Calculate items count
   this.itemsCount = this.items.reduce((sum, item) => sum + item.quantity, 0);
