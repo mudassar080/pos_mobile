@@ -78,6 +78,7 @@ export default function EditPurchasePage() {
   const [salePrice, setSalePrice] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
+  const [color, setColor] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [paidAmount, setPaidAmount] = useState('');
   const [notes, setNotes] = useState('');
@@ -99,6 +100,7 @@ export default function EditPurchasePage() {
     name: '',
     brand: '',
     model: '',
+    color: '',
   });
 
   // Add Supplier Modal state
@@ -282,11 +284,15 @@ export default function EditPurchasePage() {
 
     const brandTrimmed = brand.trim();
     const modelTrimmed = model.trim();
+    const colorTrimmed = color.trim();
     if (brandTrimmed && brandTrimmed !== (product.brand || '')) {
       updatePayload.brand = toTitleCase(brandTrimmed);
     }
     if (modelTrimmed && modelTrimmed !== (product.model || '')) {
       updatePayload.model = toTitleCase(modelTrimmed);
+    }
+    if (colorTrimmed && colorTrimmed !== (product.color || '')) {
+      updatePayload.color = toTitleCase(colorTrimmed);
     }
 
     const finalName = (product.name || '').trim();
@@ -385,6 +391,7 @@ export default function EditPurchasePage() {
     setSalePrice('');
     setBrand('');
     setModel('');
+    setColor('');
     setQuantity(1);
   };
 
@@ -592,6 +599,7 @@ export default function EditPurchasePage() {
     const name = toTitleCase(productForm.name);
     const brand = productForm.brand ? toTitleCase(productForm.brand) : '';
     const model = productForm.model ? toTitleCase(productForm.model) : '';
+    const productColor = productForm.color ? toTitleCase(productForm.color) : '';
     const itemCategory = [name, brand, model].filter(Boolean).join(' - ');
 
     // Create a temporary local product (not saved to DB yet)
@@ -603,6 +611,7 @@ export default function EditPurchasePage() {
       category: itemCategory,
       brand,
       model,
+      color: productColor || null,
       purchasePrice: 0,
       quantity: 0,
     };
@@ -614,11 +623,14 @@ export default function EditPurchasePage() {
     setSelectedProduct(tempId);
     setPurchasePrice('');
     setImei('');
+    setBrand(brand);
+    setModel(model);
+    setColor(productColor);
     setQuantity(1);
 
     // Close modal and reset form
     setShowAddProduct(false);
-    setProductForm({ name: '', brand: '', model: '' });
+    setProductForm({ name: '', brand: '', model: '', color: '' });
 
     toast({
       title: 'Product Added',
@@ -753,7 +765,7 @@ export default function EditPurchasePage() {
                   size="sm"
                   className={cn(purchaseBtnSecondary, 'mb-4')}
                   onClick={() => {
-                    setProductForm({ name: '', brand: '', model: '' });
+                    setProductForm({ name: '', brand: '', model: '', color: '' });
                     setShowAddProduct(true);
                   }}
                 >
@@ -772,8 +784,8 @@ export default function EditPurchasePage() {
                         label: `${product.name || ''}${
                           product.brand ? ` | Brand: ${product.brand}` : ''
                         }${product.model ? ` | Model: ${product.model}` : ''}${
-                          product.category ? ` | Category: ${product.category}` : ''
-                        }${
+                          product.color ? ` | Color: ${product.color}` : ''
+                        }${product.category ? ` | Category: ${product.category}` : ''}${
                           product.sellingPrice
                             ? ` | Sale: ${formatCurrency(product.sellingPrice)}`
                             : ''
@@ -789,6 +801,7 @@ export default function EditPurchasePage() {
                           setSalePrice(product.sellingPrice?.toString() || '');
                           setBrand(product.brand || '');
                           setModel(product.model || '');
+                          setColor(product.color || '');
                           setImei(product.imei || '');
                           setQuantity(1);
                         } else {
@@ -796,6 +809,7 @@ export default function EditPurchasePage() {
                           setSalePrice('');
                           setBrand('');
                           setModel('');
+                          setColor('');
                           setImei('');
                           setQuantity(1);
                         }
@@ -878,6 +892,15 @@ export default function EditPurchasePage() {
                             value={model}
                             onChange={(e) => setModel(e.target.value)}
                             placeholder="Model"
+                            className="rounded-xl mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label>Color</Label>
+                          <Input
+                            value={color}
+                            onChange={(e) => setColor(e.target.value)}
+                            placeholder="e.g., Black, Silver"
                             className="rounded-xl mt-1.5"
                           />
                         </div>

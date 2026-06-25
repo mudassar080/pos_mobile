@@ -1,6 +1,6 @@
 'use client';
 
-import { Layers, Loader2, Package, Tag } from 'lucide-react';
+import { Layers, Loader2, Package, Palette, Tag } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ export type PurchaseProductFormData = {
   name: string;
   brand: string;
   model: string;
+  color: string;
 };
 
 type AddProductDialogProps = {
@@ -147,6 +148,15 @@ export function AddProductDialog({
             value={form.model}
             onChange={(e) => update({ model: e.target.value })}
             placeholder="e.g., 15 Pro Max"
+          />
+
+          <Field
+            id="purchase-product-color"
+            label="Color"
+            icon={Palette}
+            value={form.color}
+            onChange={(e) => update({ color: e.target.value })}
+            placeholder="e.g., Black, Silver"
           />
 
           <div>

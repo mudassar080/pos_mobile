@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Package, Tag, Layers } from 'lucide-react';
+import { Loader2, Package, Tag, Layers, Palette } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ export type ProductFormData = {
   category: string;
   brand: string;
   model: string;
+  color: string;
 };
 
 type ProductFormDialogProps = {
@@ -90,7 +91,7 @@ export function ProductFormDialog({
               </DialogTitle>
               <DialogDescription className="mt-1 text-sm text-cyan-100">
                 {editing
-                  ? 'Update item name, brand, or model for this catalog entry.'
+                  ? 'Update item name, brand, model, or color for this catalog entry.'
                   : 'Add a new item to your product catalog.'}
               </DialogDescription>
             </div>
@@ -130,6 +131,15 @@ export function ProductFormDialog({
             value={form.model}
             onChange={(e) => update({ model: e.target.value })}
             placeholder="e.g., 15 Pro Max"
+          />
+
+          <Field
+            id="product-color"
+            label="Color"
+            icon={Palette}
+            value={form.color}
+            onChange={(e) => update({ color: e.target.value })}
+            placeholder="e.g., Black, Silver"
           />
         </div>
 

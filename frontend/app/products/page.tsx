@@ -91,6 +91,7 @@ export default function ProductsPage() {
     category: '',
     brand: '',
     model: '',
+    color: '',
   });
 
   const {
@@ -137,7 +138,7 @@ export default function ProductsPage() {
 
   const handleOpenAddDialog = () => {
     setEditingProduct(null);
-    setFormData({ name: '', category: '', brand: '', model: '' });
+    setFormData({ name: '', category: '', brand: '', model: '', color: '' });
     setShowAddDialog(true);
   };
 
@@ -148,6 +149,7 @@ export default function ProductsPage() {
       category: product.category || '',
       brand: product.brand || '',
       model: product.model || '',
+      color: product.color || '',
     });
     setShowAddDialog(true);
   };
@@ -175,9 +177,16 @@ export default function ProductsPage() {
       const name = formData.name ? toTitleCase(formData.name) : '';
       const brand = formData.brand ? toTitleCase(formData.brand) : '';
       const model = formData.model ? toTitleCase(formData.model) : '';
+      const color = formData.color ? toTitleCase(formData.color) : '';
       const itemCategory = [name, brand, model].filter(Boolean).join(' - ');
 
-      const productData = { name, category: itemCategory, brand, model };
+      const productData = {
+        name,
+        category: itemCategory,
+        brand,
+        model,
+        color: color || null,
+      };
 
       if (editingProduct) {
         await productsApi.update(editingProduct._id, productData);
