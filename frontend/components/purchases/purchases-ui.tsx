@@ -38,6 +38,7 @@ export const purchaseBtnSecondary =
   'rounded-xl border-indigo-200 text-indigo-700 hover:bg-indigo-50';
 
 export { AddSupplierDialog, type SupplierFormData } from '@/components/purchases/add-supplier-dialog';
+export { AddProductDialog, type PurchaseProductFormData } from '@/components/purchases/add-product-dialog';
 
 export function NewPurchaseReturnButton() {
   return (

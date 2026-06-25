@@ -20,12 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Trash2, Save, Loader2, Info, Package, ShoppingBag, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -38,6 +32,7 @@ import {
   purchaseBtnPrimary,
   purchaseBtnSecondary,
   AddSupplierDialog,
+  AddProductDialog,
 } from '@/components/purchases/purchases-ui';
 import { useParams, useRouter } from 'next/navigation';
 import { formatCurrency } from '@/utils/constant';
@@ -575,12 +570,6 @@ export default function EditPurchasePage() {
   const buildItemCategory = (name: string, brandValue: string, modelValue: string) =>
     [name, brandValue, modelValue].filter(Boolean).join(' - ');
 
-  const modalCategoryPreview = buildItemCategory(
-    productForm.name ? toTitleCase(productForm.name) : '',
-    productForm.brand ? toTitleCase(productForm.brand) : '',
-    productForm.model ? toTitleCase(productForm.model) : ''
-  );
-
   const selectedProductData = products.find((p) => p._id === selectedProduct);
   const selectedItemCategory = selectedProductData
     ? buildItemCategory(
@@ -1058,82 +1047,14 @@ export default function EditPurchasePage() {
           </div>
         </div>
 
-        <Dialog open={showAddProduct} onOpenChange={setShowAddProduct}>
-          <DialogContent className="max-w-md rounded-2xl">
-            <DialogHeader>
-              <DialogTitle>Add New Product</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Item Name *</Label>
-                <Combobox
-                  options={itemNameOptions}
-                  value={productForm.name}
-                  onValueChange={(value) =>
-                    setProductForm({ ...productForm, name: value })
-                  }
-                  placeholder="Search or create item name"
-                  searchPlaceholder="Search items..."
-                  emptyText="No items found"
-                  allowCreate
-                  onCreateNew={(newName) =>
-                    setProductForm({ ...productForm, name: newName })
-                  }
-                />
-              </div>
-
-              <div>
-                <Label>Brand</Label>
-                <Input
-                  value={productForm.brand}
-                  onChange={(e) =>
-                    setProductForm({ ...productForm, brand: e.target.value })
-                  }
-                  placeholder="e.g., Apple, Samsung"
-                />
-              </div>
-
-              <div>
-                <Label>Model</Label>
-                <Input
-                  value={productForm.model}
-                  onChange={(e) =>
-                    setProductForm({ ...productForm, model: e.target.value })
-                  }
-                  placeholder="e.g., 15 Pro Max"
-                />
-              </div>
-
-              <div>
-                <Label>Category</Label>
-                <Input
-                  value={modalCategoryPreview || '—'}
-                  readOnly
-                  className="bg-slate-50 text-slate-700"
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Auto-generated from item name, brand, and model
-                </p>
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAddProduct(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveProduct}
-                  className="flex-1"
-                >
-                  Save Product
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <AddProductDialog
+          open={showAddProduct}
+          onOpenChange={setShowAddProduct}
+          form={productForm}
+          onFormChange={setProductForm}
+          itemNameOptions={itemNameOptions}
+          onSave={handleSaveProduct}
+        />
 
         <AddSupplierDialog
           open={showAddSupplier}
